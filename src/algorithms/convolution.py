@@ -11,52 +11,46 @@ convolution_kernels: dict[str, list[list[float]]] = {
     "edge_detection (roberts-y)": [[0, 1], [-0, 0]],
     "edge_detection (laplacian)": [[0, -1, 0], [-1, 4, -1], [0, -1, 0]],
     "sharpen": [[0, -1, 0], [-1, 5, -1], [0, -1, 0]],
-    "blur (low-pass)": [[1/9, 1/9, 1/9], [1/9, 1/9, 1/9], [1/9, 1/9, 1/9]],
-    "blur (gaussian 3x3)": [[1/16, 2/16, 1/16], [2/16, 4/16, 2/16], [1/16, 2/16, 1/16]],
+    "blur (low-pass)": [[1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9]],
+    "blur (gaussian 3x3)": [[1 / 16, 2 / 16, 1 / 16], [2 / 16, 4 / 16, 2 / 16], [1 / 16, 2 / 16, 1 / 16]],
     "blur (gaussian 5x5)": [
-        [1/256, 4/256, 6/256, 4/256, 1/256],
-        [4/256, 16/256, 24/256, 16/256, 4/256],
-        [6/256, 24/256, 36/256, 24/256, 6/256],
-        [4/256, 16/256, 24/256, 16/256, 4/256],
-        [1/256, 4/256, 6/256, 4/256, 1/256]
+        [1 / 256, 4 / 256, 6 / 256, 4 / 256, 1 / 256],
+        [4 / 256, 16 / 256, 24 / 256, 16 / 256, 4 / 256],
+        [6 / 256, 24 / 256, 36 / 256, 24 / 256, 6 / 256],
+        [4 / 256, 16 / 256, 24 / 256, 16 / 256, 4 / 256],
+        [1 / 256, 4 / 256, 6 / 256, 4 / 256, 1 / 256]
     ]
 }
 
 
 def convolve(target_image: Image.Image, kernel: list[list[float]]) -> Image.Image:
-    """
-    Convolve the target image with the given kernel.
-    :param target_image: The target image to be convolved.
-    :param kernel: The kernel to be used for convolution.
-    :return: The convolved image.
-    """
-    width, height = target_image.size
-    kernel_width = len(kernel[0])
-    kernel_height = len(kernel)
-    border_x = kernel_width // 2
-    border_y = kernel_height // 2
-    result = Image.new("RGB", (width, height))
-
-    # Aggiungi il padding all'immagine
-    padded_image = Image.new("RGB", (width + 2 * border_x, height + 2 * border_y))
-    padded_image.paste(target_image, (border_x, border_y))
-
-    # Applica la convoluzione
-    for y in range(height):
-        for x in range(width):
-            # Calcola il valore del pixel convoluto per ogni canale di colore (R, G, B)
-            convolved_pixel = [0, 0, 0, 0]
-            for ky in range(kernel_height):
-                for kx in range(kernel_width):
-                    pixel = padded_image.getpixel((x + kx, y + ky))
-                    kernel_value = kernel[ky][kx]
-                    for i in range(3):  # 3 canali di colore (R, G, B)
-                        convolved_pixel[i] += pixel[i] * kernel_value
-
-            # Normalizza i valori dei pixel convoluti e assegna il risultato all'immagine di output
-            for i in range(3):  # 3 canali di colore (R, G, B)
-                convolved_pixel[i] = max(0, min(255, int(convolved_pixel[i])))
-
-            result.putpixel((x, y), tuple(convolved_pixel))
-
-    return result
+    image_width, image_height = target_image.size
+    kernel_size: int = len(kernel)
+    padding: int = kernel_size // 2
+    output_image: Image.Image = Image.new("RGB", (image_width, image_height))
+    target_image.load()
+    output_image.load()
+    for y in range(image_height):
+        for x in range(image_width):
+            x_start: int = x - padding
+            x_end: int = x + padding + 1
+            y_start: int = y - padding
+            y_end: int = y + padding + 1
+            iterator: int = 0
+            conv_pixel: list[float, float, float] = [0, 0, 0]
+            for ky in range(y_start, y_end):
+                for kx in range(x_start, x_end):
+                    px = max(0, min(kx, image_width - 1))
+                    py = max(0, min(ky, image_height - 1))
+                    pixel = target_image.getpixel((px, py))
+                    kernel_value = kernel[iterator // kernel_size][iterator % kernel_size]
+                    conv_pixel[0] += pixel[0] * kernel_value
+                    conv_pixel[1] += pixel[1] * kernel_value
+                    conv_pixel[2] += pixel[2] * kernel_value
+                    iterator += 1
+            output_image.putpixel((x, y), (
+                max(0, min(255, int(conv_pixel[0]))),
+                max(0, min(255, int(conv_pixel[1]))),
+                max(0, min(255, int(conv_pixel[2])))
+            ))
+    return output_image

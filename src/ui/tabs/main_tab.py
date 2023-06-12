@@ -448,6 +448,7 @@ class MainTab:
             self._selected_algorithm_sub_type = selection
         else:
             self._algorithm_sub_type_menu.grid_forget()
+            self._selected_algorithm_sub_type = ""
 
     def _on_algorithm_sub_type_menu_change(self, value: str) -> None:
         """
@@ -477,7 +478,7 @@ class MainTab:
         t.start()
 
     def _bench_dispatch(self) -> None:
-        sub_images: list[Image.Image] = self._image_divider_implementation()
+        result_timestamps: dict[str, float] = {}
         single_run = Process(target=execute_benchmark, args=(self._target_image, self._selected_algorithm_type,
                                                              self._selected_algorithm_sub_type))
         start_time: float = time.time()
@@ -485,24 +486,38 @@ class MainTab:
         single_run.join()
         single_run.close()
         end_time: float = time.time()
-        print(f"Single run took {end_time - start_time} seconds.")
-
-        pool = Pool(len(sub_images))
-        args = [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type) for sub_image in
-                sub_images]
-        start_time = time.time()
-        result_images = pool.starmap(execute_benchmark, args)
-        pool.close()
-        pool.join()
-        end_time = time.time()
-        parallel_execution_time = end_time - start_time
-        print("Tempo di esecuzione parallelo:", parallel_execution_time, "secondi")
-        self._image_merger_implementation(result_images).show()
+        result_timestamps["Serial"] = end_time - start_time
+        bench_configurations: set[int] = set()
+        result_image: Image.Image
+        if not self._bench_all_configurations:
+            bench_configurations.add(self._target_cpu_core_set)
+        else:
+            if not self._is_square_dividing:
+                bench_configurations.update(range(1, self._available_cpu_core + 1))
+            else:
+                upper_bound: int = int(math.sqrt(self._available_cpu_core)) + 1
+                bench_configurations.update([i * i for i in range(1, upper_bound)])
+        for index, cpu_set in enumerate(bench_configurations):
+            self._target_cpu_core_set = cpu_set
+            sub_images: list[Image.Image] = self._image_divider_implementation()
+            pool = Pool(len(sub_images))
+            args = [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type) for sub_image in
+                    sub_images]
+            start_time = time.time()
+            result_images = pool.starmap(execute_benchmark, args)
+            pool.close()
+            pool.join()
+            end_time = time.time()
+            result_timestamps[f"P ({cpu_set})"] = end_time - start_time
+            if index == len(bench_configurations) - 1:
+                result_image = self._image_merger_implementation(result_images)
+            time.sleep(2)
+        self._benchmark_tab.set_result_image(result_image)
+        self._benchmark_tab.set_timestamps(result_timestamps)
         self.toggle_controls()
-        for image in sub_images:
-            image.show()
-        for image in result_images:
-            image.show()
+        CTkMessagebox(title="Benchmark", message="Benchmark completed successfully.\n"
+                                                 f"Look at benchmark tab for results.\n",
+                      icon="check")
 
     def toggle_controls(self) -> None:
         """
@@ -512,7 +527,9 @@ class MainTab:
         toggled: str = "disabled" if self._load_image_btn.cget("state") == "normal" else "normal"
         self._bench_start_btn.configure(state=toggled)
         self._load_image_btn.configure(state=toggled)
-        self._cpu_core_slider.configure(state=toggled)
+        self._bench_all_checkbox.configure(state=toggled)
+        if not self._bench_all_configurations:
+            self._cpu_core_slider.configure(state=toggled)
         self._algorithm_type_menu.configure(state=toggled)
         self._algorithm_sub_type_menu.configure(state=toggled)
         if toggled == "normal":
@@ -528,7 +545,7 @@ class MainTab:
         return (self._target_cpu_core_set ** 0.5).is_integer()
 
 
-def execute_benchmark(target_image: Image.Image, selected_algorithm_type: str, selected_algorithm_sub_type: str) -> Image.Image:
-    result_image: Image.Image = convolve(target_image,
-                                         convolution_kernels[selected_algorithm_sub_type])
-    return result_image
+def execute_benchmark(target_image: Image.Image, selected_algorithm_type: str,
+                      selected_algorithm_sub_type: str) -> Image.Image:
+    if selected_algorithm_type == "Convolution":
+        return convolve(target_image, convolution_kernels[selected_algorithm_sub_type])

@@ -23,12 +23,12 @@ This tool was developed as part of a final project for the course "Multimedia" a
     def __init__(self, container: customtkinter.CTkTabview):
         """
         Initializes the About tab.
-        :param container:
+        :param container: Container to add the About tab to.
         """
         self._reference = container.add("About")
         self._reference.columnconfigure(0, weight=1)
 
-    def populate(self):
+    def populate(self) -> None:
         """
         Populates the About tab by adding and griding widgets.
         :return:

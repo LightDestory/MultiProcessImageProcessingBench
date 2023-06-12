@@ -1,16 +1,21 @@
+import threading
+import time
+
 import customtkinter
 import multiprocessing
 import math
 from PIL import Image, ImageDraw, ImageFont
+from multiprocessing import Process, Pool
 from CTkMessagebox import CTkMessagebox
 from customtkinter import filedialog
 
-from src.shared import shared
+from src.algorithms.convolution import convolution_kernels, convolve
 from src.ui.components.image_viewer_top_level import ImageViewerTopLevel
 from src.ui.tabs.bench_tab import BenchTab
 
 
 class MainTab:
+    # tkinter widgets
     _reference: customtkinter.CTkFrame
     _benchmark_tab: BenchTab
     _main_container: customtkinter.CTkFrame
@@ -25,7 +30,7 @@ class MainTab:
     _benchmark_selector_title: customtkinter.CTkLabel
     _cpu_core_text: customtkinter.CTkLabel
     _cpu_core_label: customtkinter.CTkLabel
-    _slider_cpu_workers_frame: customtkinter.CTkFrame
+    _cpu_core_slider_workers_frame: customtkinter.CTkFrame
     _cpu_core_progress_bar: customtkinter.CTkProgressBar
     _cpu_core_slider: customtkinter.CTkSlider
     _bench_all_checkbox: customtkinter.CTkCheckBox
@@ -34,17 +39,34 @@ class MainTab:
     _square_division_warning_label: customtkinter.CTkLabel
     _bench_start_btn: customtkinter.CTkButton
     _bench_progress_bar: customtkinter.CTkProgressBar
+    _algorithm_label: customtkinter.CTkLabel
+    _algorithm_type_menu: customtkinter.CTkOptionMenu
+    _algorithm_sub_type_menu: customtkinter.CTkOptionMenu
+    # Image Viewer Widget
+    _top_level_image_viewer: ImageViewerTopLevel | None = None
+    # Function references
     _preview_image_divider_implementation: callable
     _image_divider_implementation: callable
     _image_merger_implementation: callable
-    _top_level_image_viewer: ImageViewerTopLevel | None = None
+    # Implemented algorithms (Name, HasSubTypes)
+    _implemented_algorithms: dict[str, bool] = {
+        "Convolution": True,
+        "Test": False
+    }
+    _available_cpu_core: int = multiprocessing.cpu_count()
+    _target_cpu_core_set: int = 1
+    _target_image: Image.Image | None = None
+    _resized_target_image: Image.Image | None = None
+    _bench_all_configurations: bool = False
+    _selected_algorithm_type: str = ""
+    _selected_algorithm_sub_type: str = ""
+    _is_square_dividing: bool = False
 
     def __init__(self, container: customtkinter.CTkTabview):
         """
         Initializes the Main tab.
         :param container: Container to add the Main tab to.
         """
-        shared.available_cpu_core = multiprocessing.cpu_count()
         self._reference = container.add("Main")
         self._reference.columnconfigure(0, weight=1)
         self._preview_image_divider_implementation = self._preview_line_image_sub_divider
@@ -107,7 +129,7 @@ class MainTab:
         self._benchmark_selector_title.grid(row=3, column=0, sticky="nw", padx=(20, 0))
         # CPU core label
         self._cpu_core_label = customtkinter.CTkLabel(self._main_container,
-                                                      text=f"Worker Cores ({shared.available_cpu_core} CPU cores available):",
+                                                      text=f"Worker Cores ({self._available_cpu_core} CPU cores available):",
                                                       font=customtkinter.CTkFont(size=18))
         self._cpu_core_label.grid(row=4, column=0, sticky="nw", padx=(20, 0))
         # CPU core text
@@ -115,15 +137,15 @@ class MainTab:
                                                      font=customtkinter.CTkFont(size=18, slant="italic"))
         self._cpu_core_text.grid(row=4, column=1, sticky="new", padx=(20, 0))
         # CPU core slider frame
-        self._slider_cpu_workers_frame = customtkinter.CTkFrame(self._main_container, fg_color="transparent")
-        self._slider_cpu_workers_frame.grid(row=5, column=1, sticky="nsew")
-        self._slider_cpu_workers_frame.grid_columnconfigure(0, weight=1)
+        self._cpu_core_slider_workers_frame = customtkinter.CTkFrame(self._main_container, fg_color="transparent")
+        self._cpu_core_slider_workers_frame.grid(row=5, column=1, sticky="nsew")
+        self._cpu_core_slider_workers_frame.grid_columnconfigure(0, weight=1)
         # CPU core progress bar
-        self._cpu_core_progress_bar = customtkinter.CTkProgressBar(self._slider_cpu_workers_frame)
+        self._cpu_core_progress_bar = customtkinter.CTkProgressBar(self._cpu_core_slider_workers_frame)
         self._cpu_core_progress_bar.grid(row=0, column=0, sticky="enw")
         # CPU core slider
-        self._cpu_core_slider = customtkinter.CTkSlider(self._slider_cpu_workers_frame, from_=1, to=16,
-                                                        number_of_steps=shared.available_cpu_core - 1,
+        self._cpu_core_slider = customtkinter.CTkSlider(self._cpu_core_slider_workers_frame, from_=1, to=16,
+                                                        number_of_steps=self._available_cpu_core - 1,
                                                         command=self._on_cpu_core_slider_change)
         self._cpu_core_slider.grid(row=1, column=0, sticky="enw", pady=(10, 0))
         # Bench all checkbox
@@ -147,6 +169,19 @@ class MainTab:
                                                                      text="Workers must be a square number",
                                                                      font=customtkinter.CTkFont(size=18),
                                                                      text_color="red")
+        # Algorithm label
+        self._algorithm_label = customtkinter.CTkLabel(self._main_container, text=f"Algorithm to use:",
+                                                       font=customtkinter.CTkFont(size=18))
+        self._algorithm_label.grid(row=8, column=0, sticky="nw", padx=(20, 0))
+        # Algorithm type menu
+        self._algorithm_type_menu = customtkinter.CTkOptionMenu(self._main_container, width=230,
+                                                                values=list(self._implemented_algorithms.keys()),
+                                                                command=self._on_algorithm_type_menu_change)
+        self._algorithm_type_menu.grid(row=9, column=0, sticky="nw", padx=(60, 0))
+        # Algorithm sub_type menu
+        self._algorithm_sub_type_menu = customtkinter.CTkOptionMenu(self._main_container, dynamic_resizing=False,
+                                                                    command=self._on_algorithm_sub_type_menu_change)
+
         # Start benchmark button
         self._bench_start_btn = customtkinter.CTkButton(self._main_container, text="Start Benchmark",
                                                         command=self._on_start_bench_btn)
@@ -159,6 +194,7 @@ class MainTab:
         self._cpu_core_slider.set(1)
         self._cpu_core_progress_bar.set(0)
         self._bench_progress_bar.start()
+        self._on_algorithm_type_menu_change(self._algorithm_type_menu.get())
 
     def _import_image(self) -> None:
         """
@@ -182,10 +218,10 @@ class MainTab:
             else:
                 CTkMessagebox(title=title_text, message="Image loading cancelled.", icon="warning")
                 return
-        shared.target_image = temp_image
-        shared.resized_target_image = shared.target_image.copy().resize((512, 512))
+        self._target_image = temp_image
+        self._resized_target_image = self._target_image.copy().resize((512, 512))
         self._image_path.configure(text=f"{filepath.split('/')[-1]} ")
-        self._image_size.configure(text=f"{shared.target_image.size[0]}x{shared.target_image.size[0]} ")
+        self._image_size.configure(text=f"{self._target_image.size[0]}x{self._target_image.size[0]} ")
         self._update_image_preview()
         self._refresh_top_level()
 
@@ -194,7 +230,7 @@ class MainTab:
         Update the image preview.
         :return:
         """
-        if shared.target_image is None:
+        if self._target_image is None:
             return
         self._image_thumbnail = customtkinter.CTkImage(light_image=self._preview_image_divider_implementation(),
                                                        size=(512, 512))
@@ -205,12 +241,12 @@ class MainTab:
         Preview the image divider using lines.
         :return: A preview of the image divider using lines.
         """
-        tmp_image: Image.Image = shared.resized_target_image.copy()
-        if shared.target_cpu_core_set == 1:
+        tmp_image: Image.Image = self._resized_target_image.copy()
+        if self._target_cpu_core_set == 1:
             return tmp_image
-        line_width = 512 // shared.target_cpu_core_set
+        line_width = 512 // self._target_cpu_core_set
         draw = ImageDraw.Draw(tmp_image)
-        for i in range(1, shared.target_cpu_core_set):
+        for i in range(1, self._target_cpu_core_set):
             left = i * line_width
             draw.line((left, 0, left, 512), fill=(255, 0, 0), width=2)
         return tmp_image
@@ -220,12 +256,12 @@ class MainTab:
         Divide the image using lines.
         :return: A list of the lines that the image is divided into.
         """
-        tmp_image: Image.Image = shared.target_image.copy()
-        if shared.target_cpu_core_set == 1:
+        tmp_image: Image.Image = self._target_image.copy()
+        if self._target_cpu_core_set == 1:
             return [tmp_image]
         sub_images: list[Image.Image] = []
-        line_width = tmp_image.width // shared.target_cpu_core_set
-        for i in range(shared.target_cpu_core_set):
+        line_width = tmp_image.width // self._target_cpu_core_set
+        for i in range(self._target_cpu_core_set):
             left = i * line_width
             right = left + line_width
             sub_images.append(tmp_image.crop((left, 0, right, tmp_image.height)))
@@ -239,9 +275,9 @@ class MainTab:
         """
         if len(lines) == 1:
             return lines[0]
-        tmp_image = Image.new("RGBA", shared.target_image.size)
-        line_width = tmp_image.width // shared.target_cpu_core_set
-        for i in range(shared.target_cpu_core_set):
+        tmp_image = Image.new("RGBA", self._target_image.size)
+        line_width = tmp_image.width // self._target_cpu_core_set
+        for i in range(self._target_cpu_core_set):
             left = i * line_width
             right = left + line_width
             tmp_image.paste(lines[i], (left, 0, right, tmp_image.height))
@@ -252,13 +288,13 @@ class MainTab:
         Preview the image divider using squares.
         :return: The preview of the image divider using squares.
         """
-        tmp_image: Image.Image = shared.resized_target_image.copy()
+        tmp_image: Image.Image = self._resized_target_image.copy()
         draw = ImageDraw.Draw(tmp_image)
-        if (shared.target_cpu_core_set ** 0.5).is_integer() is False:
+        if self.is_square_doable() is False:
             draw.text((100, 225), "ERROR:\nThe number of CPU cores must \nbe a square number.", fill=(255, 0, 0),
                       stroke_fill=(0, 0, 0), stroke_width=3, font=ImageFont.truetype("arial.ttf", 22))
         else:
-            num_parts: int = int(shared.target_cpu_core_set ** 0.5)
+            num_parts: int = int(self._target_cpu_core_set ** 0.5)
             square_size: int = 512 // num_parts
             for row in range(num_parts):
                 for column in range(num_parts):
@@ -274,11 +310,11 @@ class MainTab:
         Divide the image using squares.
         :return: A list of the squares that the image is divided into.
         """
-        tmp_image: Image.Image = shared.target_image.copy()
-        if shared.target_cpu_core_set == 1:
+        tmp_image: Image.Image = self._target_image.copy()
+        if self._target_cpu_core_set == 1:
             return [tmp_image]
         else:
-            num_parts: int = int(shared.target_cpu_core_set ** 0.5)
+            num_parts: int = int(self._target_cpu_core_set ** 0.5)
             square_size: int = tmp_image.width // num_parts
             sub_images: list[Image.Image] = []
             for row in range(num_parts):
@@ -298,7 +334,7 @@ class MainTab:
         """
         if len(squares) == 1:
             return squares[0]
-        tmp_image = Image.new("RGBA", shared.target_image.size)
+        tmp_image = Image.new("RGBA", self._target_image.size)
         square_size: int = squares[0].width
         iterator: int = int(len(squares) ** 0.5)
         for row in range(iterator):
@@ -317,14 +353,14 @@ class MainTab:
         """
         if self._top_level_image_viewer is None or not self._top_level_image_viewer.winfo_exists():
             return
-        self._top_level_image_viewer.set_image(shared.target_image)
+        self._top_level_image_viewer.set_image(self._target_image)
 
     def _on_preview_image_click(self, _) -> None:
         """
         Called when the preview image is clicked. Opens the image in the image viewer.
         :return:
         """
-        if shared.target_image is None:
+        if self._target_image is None:
             return
         if self._top_level_image_viewer is None or not self._top_level_image_viewer.winfo_exists():
             self._top_level_image_viewer = ImageViewerTopLevel()
@@ -340,13 +376,13 @@ class MainTab:
         :return:
         """
         int_value: int = int(value)
-        if int_value == shared.target_cpu_core_set:
+        if int_value == self._target_cpu_core_set:
             return
-        shared.target_cpu_core_set = int_value
+        self._target_cpu_core_set = int_value
         if int_value == 1:
             self._cpu_core_progress_bar.set(0)
         else:
-            self._cpu_core_progress_bar.set((int_value / shared.available_cpu_core))
+            self._cpu_core_progress_bar.set((int_value / self._available_cpu_core))
         self._cpu_core_text.configure(text=f"{int(value)} ")
         self._update_image_preview()
 
@@ -355,17 +391,17 @@ class MainTab:
         Called when the bench all checkbox is changed.
         :return:
         """
-        shared.bench_all_configurations = bool(self._bench_all_checkbox.get())
-        if shared.bench_all_configurations:
+        self._bench_all_configurations = bool(self._bench_all_checkbox.get())
+        if self._bench_all_configurations:
             self._cpu_core_text.configure(text=f"∞ ")
             self._cpu_core_slider.configure(state="disabled")
             self._cpu_core_slider.configure(button_color="red")
             self._cpu_core_progress_bar.configure(progress_color="red")
-            shared.target_cpu_core_set = 1
+            self._target_cpu_core_set = 1
         else:
-            shared.target_cpu_core_set = int(self._cpu_core_slider.get())
+            self._target_cpu_core_set = int(self._cpu_core_slider.get())
             self._cpu_core_slider.configure(state="normal")
-            self._cpu_core_text.configure(text=f"{shared.target_cpu_core_set} ")
+            self._cpu_core_text.configure(text=f"{self._target_cpu_core_set} ")
             self._cpu_core_slider.configure(button_color=("#2CC985", "#2FA572"))
             self._cpu_core_progress_bar.configure(progress_color=("#2CC985", "#2FA572"))
         self._update_image_preview()
@@ -376,8 +412,8 @@ class MainTab:
         refreshes the preview.
         :return:
         """
-        is_square_dividing = bool(self._image_divider_switch.get())
-        if is_square_dividing:
+        self._is_square_dividing = bool(self._image_divider_switch.get())
+        if self._is_square_dividing:
             self._image_divider_switch.configure(text="Divide image using squares")
             self._preview_image_divider_implementation = self._preview_square_image_sub_divider
             self._image_divider_implementation = self._square_image_sub_divider
@@ -392,12 +428,107 @@ class MainTab:
             self._square_division_warning_label.grid_forget()
         self._update_image_preview()
 
+    def _on_algorithm_type_menu_change(self, value: str) -> None:
+        """
+        Called when the algorithm type menu is changed. Updates the algorithm sub type menu.
+        :param value: The new value of the algorithm type menu.
+        :return:
+        """
+        if value == self._selected_algorithm_type:
+            return
+        self._selected_algorithm_type = value
+        if self._implemented_algorithms[value]:
+            selection: str = ""
+            if value == "Convolution":
+                values: list[str] = list(convolution_kernels.keys())
+                self._algorithm_sub_type_menu.configure(values=values)
+                selection = values[0]
+            self._algorithm_sub_type_menu.grid(row=9, column=1, sticky="new", padx=(0, 20))
+            self._algorithm_sub_type_menu.set(selection)
+            self._selected_algorithm_sub_type = selection
+        else:
+            self._algorithm_sub_type_menu.grid_forget()
+
+    def _on_algorithm_sub_type_menu_change(self, value: str) -> None:
+        """
+        Called when the algorithm sub type menu is changed. Updates the selected algorithm sub type.
+        :param value: The new value of the algorithm sub type menu.
+        :return:
+        """
+        if value == self._selected_algorithm_sub_type:
+            return
+        self._selected_algorithm_sub_type = value
+
     def _on_start_bench_btn(self) -> None:
-        if shared.target_image is None:
+        """
+        Called when the start benchmark button is pressed. Starts the benchmark.
+        :return:
+        """
+        if self._target_image is None:
             CTkMessagebox(title="No image selected", message="Please select an image and then run the benchmark.",
                           icon="warning")
             return
-        if self._bench_progress_bar.winfo_viewable():
+        if self._is_square_dividing and not self.is_square_doable():
+            CTkMessagebox(title="Invalid settings", message="To perform a square division the image must be square.",
+                          icon="warning")
+            return
+        self.toggle_controls()
+        t = threading.Thread(target=self._bench_dispatch)
+        t.start()
+
+    def _bench_dispatch(self) -> None:
+        sub_images: list[Image.Image] = self._image_divider_implementation()
+        single_run = Process(target=execute_benchmark, args=(self._target_image, self._selected_algorithm_type,
+                                                             self._selected_algorithm_sub_type))
+        start_time: float = time.time()
+        single_run.start()
+        single_run.join()
+        single_run.close()
+        end_time: float = time.time()
+        print(f"Single run took {end_time - start_time} seconds.")
+
+        pool = Pool(len(sub_images))
+        args = [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type) for sub_image in
+                sub_images]
+        start_time = time.time()
+        result_images = pool.starmap(execute_benchmark, args)
+        pool.close()
+        pool.join()
+        end_time = time.time()
+        parallel_execution_time = end_time - start_time
+        print("Tempo di esecuzione parallelo:", parallel_execution_time, "secondi")
+        self._image_merger_implementation(result_images).show()
+        self.toggle_controls()
+        for image in sub_images:
+            image.show()
+        for image in result_images:
+            image.show()
+
+    def toggle_controls(self) -> None:
+        """
+        Toggles the controls of the tab.
+        :return:
+        """
+        toggled: str = "disabled" if self._load_image_btn.cget("state") == "normal" else "normal"
+        self._bench_start_btn.configure(state=toggled)
+        self._load_image_btn.configure(state=toggled)
+        self._cpu_core_slider.configure(state=toggled)
+        self._algorithm_type_menu.configure(state=toggled)
+        self._algorithm_sub_type_menu.configure(state=toggled)
+        if toggled == "normal":
             self._bench_progress_bar.grid_forget()
         else:
             self._bench_progress_bar.grid(row=12, column=2, sticky="e", padx=(0, 20))
+
+    def is_square_doable(self) -> bool:
+        """
+        Returns whether the square division is doable or not.
+        :return: A boolean value indicating whether the square division is doable or not.
+        """
+        return (self._target_cpu_core_set ** 0.5).is_integer()
+
+
+def execute_benchmark(target_image: Image.Image, selected_algorithm_type: str, selected_algorithm_sub_type: str) -> Image.Image:
+    result_image: Image.Image = convolve(target_image,
+                                         convolution_kernels[selected_algorithm_sub_type])
+    return result_image

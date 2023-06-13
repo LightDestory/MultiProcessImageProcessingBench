@@ -29,10 +29,10 @@ def convolve(target_image: Image.Image, kernel: list[list[float]]) -> Image.Imag
     image_width, image_height = target_image.size
     kernel_size: int = len(kernel)
     padding: int = kernel_size // 2
-    output_image: Image.Image = Image.new("RGB", (image_width, image_height))
+    result_image: Image.Image = Image.new("RGB", (image_width, image_height))
     target_image = target_image.convert("RGB")
-    target_image.load()
-    output_image.load()
+    target_pixels = target_image.load()
+    result_pixels = result_image.load()
     for y in range(image_height):
         for x in range(image_width):
             x_start: int = x - padding
@@ -45,15 +45,15 @@ def convolve(target_image: Image.Image, kernel: list[list[float]]) -> Image.Imag
                 for kx in range(x_start, x_end):
                     px = max(0, min(kx, image_width - 1))
                     py = max(0, min(ky, image_height - 1))
-                    pixel = target_image.getpixel((px, py))
+                    pixel = target_pixels[px, py]
                     kernel_value = kernel[iterator // kernel_size][iterator % kernel_size]
                     conv_pixel[0] += pixel[0] * kernel_value
                     conv_pixel[1] += pixel[1] * kernel_value
                     conv_pixel[2] += pixel[2] * kernel_value
                     iterator += 1
-            output_image.putpixel((x, y), (
+            result_pixels[x, y] = (
                 max(0, min(255, int(conv_pixel[0]))),
                 max(0, min(255, int(conv_pixel[1]))),
                 max(0, min(255, int(conv_pixel[2])))
-            ))
-    return output_image
+            )
+    return result_image

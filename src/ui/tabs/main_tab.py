@@ -9,7 +9,7 @@ from multiprocessing import Process, Pool
 from CTkMessagebox import CTkMessagebox
 from customtkinter import filedialog
 
-from src.algorithms import morphological_operators, convolution
+from src.algorithms import morphological_operators, convolution, noise_reduction
 from src.ui.components.image_viewer_top_level import ImageViewerTopLevel
 from src.ui.tabs.bench_tab import BenchTab
 
@@ -51,7 +51,8 @@ class MainTab:
     # Implemented algorithms (Name, HasSubTypes)
     _implemented_algorithms: dict[str, bool] = {
         convolution.name: True,
-        morphological_operators.name: True
+        morphological_operators.name: True,
+        noise_reduction.name: True,
     }
     _available_cpu_core: int = multiprocessing.cpu_count()
     _target_cpu_core_set: int = 1
@@ -443,10 +444,12 @@ class MainTab:
                 values = list(convolution.convolution_kernels.keys())
             elif value == morphological_operators.name:
                 values: list[str] = morphological_operators.morphological_sub_types
+            elif value == noise_reduction.name:
+                values: list[str] = noise_reduction.noise_reduction_sub_types
             self._algorithm_sub_type_menu.configure(values=values)
             self._algorithm_sub_type_menu.grid(row=9, column=1, sticky="new", padx=(0, 20))
             self._algorithm_sub_type_menu.set(values[0])
-            self._selected_algorithm_sub_type = values[0]
+            self._on_algorithm_sub_type_menu_change(values[0])
         else:
             self._algorithm_sub_type_menu.grid_forget()
             self._selected_algorithm_sub_type = ""
@@ -555,3 +558,8 @@ def execute_benchmark(target_image: Image.Image, selected_algorithm_type: str,
             return morphological_operators.erosion(target_image)
         else:
             return morphological_operators.dilation(target_image)
+    elif selected_algorithm_type == noise_reduction.name:
+        if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
+            return noise_reduction.mean_filter(target_image)
+        else:
+            return noise_reduction.bilateral_filter(target_image)

@@ -5,30 +5,18 @@
 
 <div align="center">
 
-  <a href="https://github.com/LightDestory/RepositoryTemplate">
-    <img src="https://raw.githubusercontent.com/LightDestory/RepositoryTemplate/master/.github/assets/images/presentation_image.png" alt="Preview" width="90%">
+  <a href="https://github.com/LightDestory/MultiProcessImageProcessingBench">
+    <img src="https://raw.githubusercontent.com/LightDestory/MultiProcessImageProcessingBench/master/.github/assets/images/presentation_image.png" alt="Preview" width="90%">
   </a>
 
-  <h2 align="center">PROJECT_NAME</h2>
+  <h2 align="center">MultiProcess Image Processing Bench</h2>
   
   <p align="center">
-      PROJECT_SHORT_DESCRIPTION
+      A tool designed for benchmarking parallelizable image processing algorithms using Python and the multiprocessing module
   </p>
   
   <br />
   <br />
-
-  <!-- MultiLang Selector - DELETE ME IF NOT NEEDED -->
-
-  <section>
-    This README is available in the following languages:
-    <br />
-    <a href="README.md">English</a>
-    ·
-    Italian
-    <br />
-    <br />
-  </section>
 
 </div>
 
@@ -49,8 +37,6 @@
         <li><a href="#notes">Notes</a></li>
       </ul>
     </li>
-    <li><a href="#dizzy-contributing">💫 Contributing</a></li>
-    <li><a href="#handshake-support">🤝 Support</a></li>
     <li><a href="#warning-license">⚠️ License</a></li>
     <li><a href="#hammer_and_wrench-built-with">🛠️ Built With</a></li>
   </ol>
@@ -60,7 +46,11 @@
 
 ## :book: About The Project
 
-PROJECT_LONG_DESCRIPTION
+MultiProcess Image Processing is a tool designed for benchmarking parallelizable image processing algorithms using Python and the multiprocessing module. This tool enables users to assess the performance and efficiency of different image processing techniques when executed in parallel on multiple cores.
+
+The tool provides a user-friendly interface that allows users to input their image, select a processing algorithm and specify the desired number of processes to be utilized. It then automatically divides the image data into manageable chunks and assigns them to separate processes for parallel execution.
+
+_This tool was developed as part of a final project for the course "Multimedia" at the University of Study of Catania, Department of Mathematics and Computer Science._
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -96,30 +86,6 @@ NOTES_INFO
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- Contribute Block -->
-
-## :dizzy: Contributing
-
-If you are interested in contributing, please refer to [Contributing Guidelines](.github/CONTRIBUTING.md) for more information and take a look at open issues. Ask any questions you may have and you will be provided guidance on how to get started.
-
-Thank you for considering contributing.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- Support Block -->
-
-## :handshake: Support
-
-If you find value in my work, please consider making a donation to help me create, and improve my projects.
-
-Your donation will go a long way in helping me continue to create free software that can benefit people around the world.
-
-<p align="center">
-<a href='https://ko-fi.com/M4M6KC01A' target='_blank'><img src='https://raw.githubusercontent.com/LightDestory/RepositoryTemplate/master/.github/assets/images/support.png' alt='Buy Me a Hot Chocolate at ko-fi.com' width="45%" /></a>
-</p>
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
 <!-- License Block -->
 
 ## :warning: License
@@ -132,6 +98,9 @@ The content of this repository is distributed under the GNU GPL-3.0 License. See
 
 ## :hammer_and_wrench: Built With
 
-- [Capybara](https://it.wikipedia.org/wiki/Hydrochoerus_hydrochaeris)
+- [Python](https://www.python.org/)
+- [Multiprocessing module](https://docs.python.org/3/library/multiprocessing.html#module-multiprocessing)
+- [Matplotlib](https://matplotlib.org/)
+- [CustomTkinter](https://customtkinter.tomschimansky.com/)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

@@ -1,5 +1,7 @@
 from PIL import Image
 
+name: str = "Convolution"
+
 convolution_kernels: dict[str, list[list[float]]] = {
     "identity": [[0, 0, 0], [0, 1, 0], [0, 0, 0]],
     "edge_detection (high-pass)": [[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]],
@@ -28,6 +30,7 @@ def convolve(target_image: Image.Image, kernel: list[list[float]]) -> Image.Imag
     kernel_size: int = len(kernel)
     padding: int = kernel_size // 2
     output_image: Image.Image = Image.new("RGB", (image_width, image_height))
+    target_image = target_image.convert("RGB")
     target_image.load()
     output_image.load()
     for y in range(image_height):

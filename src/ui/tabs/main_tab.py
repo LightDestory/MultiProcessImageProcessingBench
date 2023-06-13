@@ -9,7 +9,7 @@ from multiprocessing import Process, Pool
 from CTkMessagebox import CTkMessagebox
 from customtkinter import filedialog
 
-from src.algorithms.convolution import convolution_kernels, convolve
+from src.algorithms import morphological_operators, convolution
 from src.ui.components.image_viewer_top_level import ImageViewerTopLevel
 from src.ui.tabs.bench_tab import BenchTab
 
@@ -50,8 +50,8 @@ class MainTab:
     _image_merger_implementation: callable
     # Implemented algorithms (Name, HasSubTypes)
     _implemented_algorithms: dict[str, bool] = {
-        "Convolution": True,
-        "Test": False
+        convolution.name: True,
+        morphological_operators.name: True
     }
     _available_cpu_core: int = multiprocessing.cpu_count()
     _target_cpu_core_set: int = 1
@@ -438,14 +438,15 @@ class MainTab:
             return
         self._selected_algorithm_type = value
         if self._implemented_algorithms[value]:
-            selection: str = ""
-            if value == "Convolution":
-                values: list[str] = list(convolution_kernels.keys())
-                self._algorithm_sub_type_menu.configure(values=values)
-                selection = values[0]
+            values: list[str] = []
+            if value == convolution.name:
+                values = list(convolution.convolution_kernels.keys())
+            elif value == morphological_operators.name:
+                values: list[str] = morphological_operators.morphological_sub_types
+            self._algorithm_sub_type_menu.configure(values=values)
             self._algorithm_sub_type_menu.grid(row=9, column=1, sticky="new", padx=(0, 20))
-            self._algorithm_sub_type_menu.set(selection)
-            self._selected_algorithm_sub_type = selection
+            self._algorithm_sub_type_menu.set(values[0])
+            self._selected_algorithm_sub_type = values[0]
         else:
             self._algorithm_sub_type_menu.grid_forget()
             self._selected_algorithm_sub_type = ""
@@ -511,7 +512,7 @@ class MainTab:
             result_timestamps[f"P ({cpu_set})"] = end_time - start_time
             if index == len(bench_configurations) - 1:
                 result_image = self._image_merger_implementation(result_images)
-            time.sleep(2)
+            time.sleep(5)
         self._benchmark_tab.set_result_image(result_image)
         self._benchmark_tab.set_timestamps(result_timestamps)
         self.toggle_controls()
@@ -547,5 +548,10 @@ class MainTab:
 
 def execute_benchmark(target_image: Image.Image, selected_algorithm_type: str,
                       selected_algorithm_sub_type: str) -> Image.Image:
-    if selected_algorithm_type == "Convolution":
-        return convolve(target_image, convolution_kernels[selected_algorithm_sub_type])
+    if selected_algorithm_type == convolution.name:
+        return convolution.convolve(target_image, convolution.convolution_kernels[selected_algorithm_sub_type])
+    elif selected_algorithm_type == morphological_operators.name:
+        if selected_algorithm_sub_type == morphological_operators.morphological_sub_types[0]:
+            return morphological_operators.erosion(target_image)
+        else:
+            return morphological_operators.dilation(target_image)

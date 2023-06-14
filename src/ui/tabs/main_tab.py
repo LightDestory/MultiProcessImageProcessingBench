@@ -5,13 +5,34 @@ import customtkinter
 import multiprocessing
 import math
 from PIL import Image, ImageDraw, ImageFont
-from multiprocessing import Process, Pool
+from multiprocessing import Pool
 from CTkMessagebox import CTkMessagebox
 from customtkinter import filedialog
 
 from src.algorithms import morphological_operators, convolution, noise_reduction
 from src.ui.components.image_viewer_top_level import ImageViewerTopLevel
 from src.ui.tabs.bench_tab import BenchTab
+
+
+def generic_benchmark(target_image: Image.Image, selected_algorithm_type: str,
+                      selected_algorithm_sub_type: str) -> Image.Image:
+    if selected_algorithm_type == convolution.name:
+        return convolution.convolve(target_image, convolution.convolution_kernels[selected_algorithm_sub_type])
+    elif selected_algorithm_type == morphological_operators.name:
+        return morphological_operators.morphological_operate(target_image, selected_algorithm_sub_type)
+
+
+def one_parameter_benchmark(target_image: Image.Image,
+                            selected_algorithm_sub_type: str, parameter: int) -> Image.Image:
+    if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
+        return noise_reduction.mean_filter(target_image, parameter)
+
+
+def three_parameters_benchmark(target_image: Image.Image,
+                               selected_algorithm_sub_type: str, parameter_1: int, parameter_2: int,
+                               parameter_3: int) -> Image.Image:
+    if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
+        return noise_reduction.bilateral_filter(target_image, parameter_1, parameter_2, parameter_3)
 
 
 class MainTab:
@@ -42,6 +63,8 @@ class MainTab:
     _algorithm_label: customtkinter.CTkLabel
     _algorithm_type_menu: customtkinter.CTkOptionMenu
     _algorithm_sub_type_menu: customtkinter.CTkOptionMenu
+    _status_text: customtkinter.CTkLabel
+    _status_label: customtkinter.CTkLabel
     # Image Viewer Widget
     _top_level_image_viewer: ImageViewerTopLevel | None = None
     # Function references
@@ -54,13 +77,20 @@ class MainTab:
         morphological_operators.name: True,
         noise_reduction.name: True,
     }
+    # Algorithm states
+    _selected_algorithm_type: str = ""
+    _selected_algorithm_sub_type: str = ""
+    _selected_algorithm_sub_type_params: dict[str, int] = {}
+    _specialized_runners: dict[str, callable] = {
+        noise_reduction.noise_reduction_sub_types[0]: one_parameter_benchmark,
+        noise_reduction.noise_reduction_sub_types[1]: three_parameters_benchmark
+    }
+    # Logic states
     _available_cpu_core: int = multiprocessing.cpu_count()
     _target_cpu_core_set: int = 1
     _target_image: Image.Image | None = None
     _resized_target_image: Image.Image | None = None
     _bench_all_configurations: bool = False
-    _selected_algorithm_type: str = ""
-    _selected_algorithm_sub_type: str = ""
     _is_square_dividing: bool = False
 
     def __init__(self, container: customtkinter.CTkTabview):
@@ -186,10 +216,18 @@ class MainTab:
         # Start benchmark button
         self._bench_start_btn = customtkinter.CTkButton(self._main_container, text="Start Benchmark",
                                                         command=self._on_start_bench_btn)
-        self._bench_start_btn.grid(row=12, column=0, columnspan=2, padx=(50, 0), sticky="ewn", pady=(0, 10))
+        self._bench_start_btn.grid(row=10, column=0, columnspan=2, padx=(50, 0), sticky="ewn", pady=(10, 10))
         # Benchmark progress bar
         self._bench_progress_bar = customtkinter.CTkProgressBar(self._main_container, mode="indeterminate",
                                                                 indeterminate_speed=0.5, width=512)
+        # Status label
+        self._status_label = customtkinter.CTkLabel(self._main_container, text="Status:",
+                                                    font=customtkinter.CTkFont(size=18, weight="bold"))
+        self._status_label.grid(row=11, column=0, sticky="nw", padx=(20, 0))
+        # Status text
+        self._status_text = customtkinter.CTkLabel(self._main_container, text="Waiting for benchmark to start...",
+                                                   font=customtkinter.CTkFont(size=18))
+        self._status_text.grid(row=12, column=0, columnspan=3, sticky="nw", padx=(20, 0), pady=(0, 20))
 
         # Default values
         self._cpu_core_slider.set(1)
@@ -291,7 +329,7 @@ class MainTab:
         """
         tmp_image: Image.Image = self._resized_target_image.copy()
         draw = ImageDraw.Draw(tmp_image)
-        if self.is_square_doable() is False:
+        if self._is_square_doable() is False:
             draw.text((100, 225), "ERROR:\nThe number of CPU cores must \nbe a square number.", fill=(255, 0, 0),
                       stroke_fill=(0, 0, 0), stroke_width=3, font=ImageFont.truetype("arial.ttf", 22))
         else:
@@ -429,6 +467,31 @@ class MainTab:
             self._square_division_warning_label.grid_forget()
         self._update_image_preview()
 
+    def _toggle_controls(self) -> None:
+        """
+        Toggles the controls of the tab.
+        :return:
+        """
+        toggled: str = "disabled" if self._load_image_btn.cget("state") == "normal" else "normal"
+        self._bench_start_btn.configure(state=toggled)
+        self._load_image_btn.configure(state=toggled)
+        self._bench_all_checkbox.configure(state=toggled)
+        if not self._bench_all_configurations:
+            self._cpu_core_slider.configure(state=toggled)
+        self._algorithm_type_menu.configure(state=toggled)
+        self._algorithm_sub_type_menu.configure(state=toggled)
+        if toggled == "normal":
+            self._bench_progress_bar.grid_forget()
+        else:
+            self._bench_progress_bar.grid(row=12, column=2, sticky="e", padx=(0, 20))
+
+    def _is_square_doable(self) -> bool:
+        """
+        Returns whether the square division is doable or not.
+        :return: A boolean value indicating whether the square division is doable or not.
+        """
+        return (self._target_cpu_core_set ** 0.5).is_integer()
+
     def _on_algorithm_type_menu_change(self, value: str) -> None:
         """
         Called when the algorithm type menu is changed. Updates the algorithm sub type menu.
@@ -462,7 +525,43 @@ class MainTab:
         """
         if value == self._selected_algorithm_sub_type:
             return
+        self._selected_algorithm_sub_type_params = {}
         self._selected_algorithm_sub_type = value
+        if self._selected_algorithm_type == noise_reduction.name:
+            if value == noise_reduction.noise_reduction_sub_types[0]:  # mean filter
+                self._selected_algorithm_sub_type_params = {"kernel_size": 3}
+            else:  # bilateral filter
+                self._selected_algorithm_sub_type_params = {
+                    "diameter": 5,
+                    "sigma_color": 10,
+                    "sigma_space": 15
+                }
+        for param in self._selected_algorithm_sub_type_params:
+            user_input: str = customtkinter.CTkInputDialog(text=f"Please enter the value for '{param}' parameter:",
+                                                           title=f"Algorithms Parameters").get_input()
+            if not user_input.isdigit() or int(user_input) <= 0:
+                CTkMessagebox(title="Invalid input",
+                              message=f"The parameter '{param}'must be a positive integer.\n"
+                                      f"Fallback to default value: {self._selected_algorithm_sub_type_params[param]}",
+                              icon="warning")
+            else:
+                self._selected_algorithm_sub_type_params[param] = int(user_input)
+
+    def _get_bench_configuration_sets(self) -> list[int]:
+        """
+        Returns the set of configurations to be benchmarked.
+        :return: The set of configurations to be benchmarked.
+        """
+        result: list[int] = [1]
+        if not self._bench_all_configurations:
+            result.append(self._target_cpu_core_set)
+        else:
+            if not self._is_square_dividing:
+                result += range(2, self._available_cpu_core + 1)
+            else:
+                upper_bound: int = int(math.sqrt(self._available_cpu_core))
+                result += [i * i for i in range(2, upper_bound + 1)]
+        return sorted(set(result))
 
     def _on_start_bench_btn(self) -> None:
         """
@@ -473,93 +572,50 @@ class MainTab:
             CTkMessagebox(title="No image selected", message="Please select an image and then run the benchmark.",
                           icon="warning")
             return
-        if self._is_square_dividing and not self.is_square_doable():
+        if self._is_square_dividing and not self._is_square_doable():
             CTkMessagebox(title="Invalid settings", message="To perform a square division the image must be square.",
                           icon="warning")
             return
-        self.toggle_controls()
+        self._toggle_controls()
         t = threading.Thread(target=self._bench_dispatch)
         t.start()
 
     def _bench_dispatch(self) -> None:
         result_timestamps: dict[str, float] = {}
-        single_run = Process(target=execute_benchmark, args=(self._target_image, self._selected_algorithm_type,
-                                                             self._selected_algorithm_sub_type))
-        start_time: float = time.time()
-        single_run.start()
-        single_run.join()
-        single_run.close()
-        end_time: float = time.time()
-        result_timestamps["Serial"] = end_time - start_time
-        bench_configurations: set[int] = set()
-        result_image: Image.Image
-        if not self._bench_all_configurations:
-            bench_configurations.add(self._target_cpu_core_set)
-        else:
-            if not self._is_square_dividing:
-                bench_configurations.update(range(1, self._available_cpu_core + 1))
-            else:
-                upper_bound: int = int(math.sqrt(self._available_cpu_core)) + 1
-                bench_configurations.update([i * i for i in range(1, upper_bound)])
-        for index, cpu_set in enumerate(bench_configurations):
+        bench_config_sets: list[int] = self._get_bench_configuration_sets()
+        result_image: Image.Image | None = None
+        benchmark: callable = generic_benchmark
+        for index, cpu_set in enumerate(bench_config_sets):
+            self._status_text.configure(text=f"Running benchmark with {cpu_set} CPU core(s)...")
             self._target_cpu_core_set = cpu_set
             sub_images: list[Image.Image] = self._image_divider_implementation()
-            pool = Pool(len(sub_images))
-            args = [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type) for sub_image in
-                    sub_images]
+            pool = Pool(cpu_set)
+            args = ()
+            if self._selected_algorithm_sub_type not in self._specialized_runners:
+                args = [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type) for sub_image in
+                        sub_images]
+            else:
+                benchmark = self._specialized_runners[self._selected_algorithm_sub_type]
+                if self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
+                    args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_sub_type_params[
+                        "kernel_size"]) for sub_image in sub_images]
+                elif self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
+                    args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_sub_type_params[
+                        "diameter"], self._selected_algorithm_sub_type_params["sigma_color"],
+                             self._selected_algorithm_sub_type_params["sigma_space"]) for sub_image in sub_images]
             start_time = time.time()
-            result_images = pool.starmap(execute_benchmark, args)
+            result_images = pool.starmap(benchmark, args)
             pool.close()
             pool.join()
             end_time = time.time()
-            result_timestamps[f"P ({cpu_set})"] = end_time - start_time
-            if index == len(bench_configurations) - 1:
+            result_timestamps["Serial" if cpu_set == 1 else f"P ({cpu_set})"] = end_time - start_time
+            if index == len(bench_config_sets) - 1:
                 result_image = self._image_merger_implementation(result_images)
             time.sleep(5)
-        self._benchmark_tab.set_result_image(result_image)
-        self._benchmark_tab.set_timestamps(result_timestamps)
-        self.toggle_controls()
         CTkMessagebox(title="Benchmark", message="Benchmark completed successfully.\n"
                                                  f"Look at benchmark tab for results.\n",
                       icon="check")
-
-    def toggle_controls(self) -> None:
-        """
-        Toggles the controls of the tab.
-        :return:
-        """
-        toggled: str = "disabled" if self._load_image_btn.cget("state") == "normal" else "normal"
-        self._bench_start_btn.configure(state=toggled)
-        self._load_image_btn.configure(state=toggled)
-        self._bench_all_checkbox.configure(state=toggled)
-        if not self._bench_all_configurations:
-            self._cpu_core_slider.configure(state=toggled)
-        self._algorithm_type_menu.configure(state=toggled)
-        self._algorithm_sub_type_menu.configure(state=toggled)
-        if toggled == "normal":
-            self._bench_progress_bar.grid_forget()
-        else:
-            self._bench_progress_bar.grid(row=12, column=2, sticky="e", padx=(0, 20))
-
-    def is_square_doable(self) -> bool:
-        """
-        Returns whether the square division is doable or not.
-        :return: A boolean value indicating whether the square division is doable or not.
-        """
-        return (self._target_cpu_core_set ** 0.5).is_integer()
-
-
-def execute_benchmark(target_image: Image.Image, selected_algorithm_type: str,
-                      selected_algorithm_sub_type: str) -> Image.Image:
-    if selected_algorithm_type == convolution.name:
-        return convolution.convolve(target_image, convolution.convolution_kernels[selected_algorithm_sub_type])
-    elif selected_algorithm_type == morphological_operators.name:
-        if selected_algorithm_sub_type == morphological_operators.morphological_sub_types[0]:
-            return morphological_operators.erosion(target_image)
-        else:
-            return morphological_operators.dilation(target_image)
-    elif selected_algorithm_type == noise_reduction.name:
-        if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
-            return noise_reduction.mean_filter(target_image)
-        else:
-            return noise_reduction.bilateral_filter(target_image)
+        self._benchmark_tab.set_result_image(result_image)
+        self._benchmark_tab.set_timestamps(result_timestamps)
+        self._toggle_controls()
+        self._status_text.configure(text="Benchmark completed.")

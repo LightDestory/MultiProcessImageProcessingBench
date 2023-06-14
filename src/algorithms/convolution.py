@@ -9,8 +9,6 @@ convolution_kernels: dict[str, list[list[float]]] = {
     "edge_detection (sobel-y)": [[-1, -2, -1], [0, 0, 0], [1, 2, 1]],
     "edge_detection (prewitt-x)": [[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]],
     "edge_detection (prewitt-y)": [[-1, -1, -1], [0, 0, 0], [1, 1, 1]],
-    "edge_detection (roberts-x)": [[1, 0], [0, -1]],
-    "edge_detection (roberts-y)": [[0, 1], [-0, 0]],
     "edge_detection (laplacian)": [[0, -1, 0], [-1, 4, -1], [0, -1, 0]],
     "sharpen": [[0, -1, 0], [-1, 5, -1], [0, -1, 0]],
     "blur (low-pass)": [[1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9]],
@@ -28,7 +26,7 @@ convolution_kernels: dict[str, list[list[float]]] = {
 def convolve(target_image: Image.Image, kernel: list[list[float]]) -> Image.Image:
     image_width, image_height = target_image.size
     kernel_size: int = len(kernel)
-    padding: int = kernel_size // 2
+    padding: int = int(kernel_size / 2)
     result_image: Image.Image = Image.new("RGB", (image_width, image_height))
     target_image = target_image.convert("RGB")
     target_pixels = target_image.load()
@@ -39,14 +37,14 @@ def convolve(target_image: Image.Image, kernel: list[list[float]]) -> Image.Imag
             x_end: int = x + padding + 1
             y_start: int = y - padding
             y_end: int = y + padding + 1
-            iterator: int = 0
             conv_pixel: list[float, float, float] = [0, 0, 0]
+            iterator: int = 0
             for ky in range(y_start, y_end):
                 for kx in range(x_start, x_end):
                     px = max(0, min(kx, image_width - 1))
                     py = max(0, min(ky, image_height - 1))
                     pixel = target_pixels[px, py]
-                    kernel_value = kernel[iterator // kernel_size][iterator % kernel_size]
+                    kernel_value = kernel[int(iterator / kernel_size)][iterator % kernel_size]
                     conv_pixel[0] += pixel[0] * kernel_value
                     conv_pixel[1] += pixel[1] * kernel_value
                     conv_pixel[2] += pixel[2] * kernel_value

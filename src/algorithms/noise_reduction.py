@@ -6,7 +6,7 @@ name: str = "Noise Reduction"
 noise_reduction_sub_types: list[str] = ["mean filter", "bilateral filter"]
 
 
-def mean_filter(target_image: Image.Image, filter_size: int = 3) -> Image.Image:
+def mean_filter(target_image: Image.Image, filter_size: int) -> Image.Image:
     """
     Applies the mean filter to an RGB image.
     :param target_image: The image to apply the operator to.
@@ -14,7 +14,7 @@ def mean_filter(target_image: Image.Image, filter_size: int = 3) -> Image.Image:
     :return: The filtered image.
     """
     width, height = target_image.size
-    half_size: int = filter_size // 2
+    half_size: int = int(filter_size / 2)
     target_image = target_image.convert("RGB")
     target_pixels = target_image.load()
     result_image = Image.new("RGB", (width, height))
@@ -36,7 +36,7 @@ def mean_filter(target_image: Image.Image, filter_size: int = 3) -> Image.Image:
     return result_image
 
 
-def bilateral_filter(target_image: Image.Image, diameter: int = 5, sigma_color: int = 15, sigma_space: int = 10) -> Image.Image:
+def bilateral_filter(target_image: Image.Image, diameter: int, sigma_color: int, sigma_space: int) -> Image.Image:
     """
     Applies the bilateral filter to an RGB image.
     :param target_image: The image to apply the operator to.

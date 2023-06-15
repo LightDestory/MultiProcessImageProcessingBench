@@ -6,7 +6,7 @@
 <div align="center">
 
   <a href="https://github.com/LightDestory/MultiProcessImageProcessingBench">
-    <img src="https://raw.githubusercontent.com/LightDestory/MultiProcessImageProcessingBench/master/.github/assets/images/presentation_image.png" alt="Preview" width="90%">
+    <img src="https://raw.githubusercontent.com/LightDestory/MultiProcessImageProcessingBench/master/.github/assets/images/presentation_image.gif" alt="Preview" width="90%">
   </a>
 
   <h2 align="center">MultiProcess Image Processing Bench</h2>

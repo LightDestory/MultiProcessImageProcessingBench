@@ -1,9 +1,8 @@
 import customtkinter
-
+from pathlib import Path
 from .tabs.about_tab import AboutTab
 from .tabs.bench_tab import BenchTab
 from .tabs.main_tab import MainTab
-
 customtkinter.set_appearance_mode("System")
 customtkinter.set_default_color_theme("green")
 
@@ -29,7 +28,7 @@ class App(customtkinter.CTk):
         x_offset: int = int((self.winfo_screenwidth() / 2) - (self._window_width / 2))
         y_offset: int = int((self.winfo_screenheight() / 2) - (self._window_height / 2))
         self.geometry("{}x{}+{}+{}".format(self._window_width, self._window_height, x_offset, y_offset))
-        self.iconbitmap("./assets/icon.ico")
+        self.iconbitmap(f"{Path(__file__).parent}/../assets/icon.ico")
         self.configure(fg_color=("gray86", "gray17"))
         self.resizable(False, False)
         self.columnconfigure(0, weight=1)

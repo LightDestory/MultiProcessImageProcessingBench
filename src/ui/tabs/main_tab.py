@@ -1,17 +1,20 @@
 import threading
 import time
-
+import sys
 import customtkinter
 import multiprocessing
 import math
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from multiprocessing import Pool
 from CTkMessagebox import CTkMessagebox
 from customtkinter import filedialog
 
+CURRENT_POSITION = Path(__file__).parent
+sys.path.append(f"{CURRENT_POSITION}/../../../")
 from src.algorithms import morphological_operators, convolution, noise_reduction
-from src.ui.components.image_viewer_top_level import ImageViewerTopLevel
-from src.ui.tabs.bench_tab import BenchTab
+from ..components.image_viewer_top_level import ImageViewerTopLevel
+from .bench_tab import BenchTab
 
 
 def generic_benchmark(target_image: Image.Image, selected_algorithm_type: str,

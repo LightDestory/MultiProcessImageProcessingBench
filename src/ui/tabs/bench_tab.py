@@ -1,10 +1,9 @@
-import _tkinter
 import customtkinter
 import io
 import matplotlib.pyplot as plt
 from PIL import Image
 
-from src.ui.components.image_viewer_top_level import ImageViewerTopLevel
+from ..components.image_viewer_top_level import ImageViewerTopLevel
 
 
 class BenchTab:

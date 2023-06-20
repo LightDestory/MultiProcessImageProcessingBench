@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from multiprocessing import Pool
+from multiprocessing.pool import Pool as PoolType
 from CTkMessagebox import CTkMessagebox
 from customtkinter import filedialog
 
@@ -20,9 +21,11 @@ from .bench_tab import BenchTab
 def generic_benchmark(target_image: Image.Image, selected_algorithm_type: str,
                       selected_algorithm_sub_type: str) -> Image.Image:
     if selected_algorithm_type == convolution.name_native:
-        return convolution.convolve_native(target_image, convolution.convolution_kernels[selected_algorithm_sub_type])
+        return convolution.convolve_native(target_image, selected_algorithm_sub_type,
+                                           "edge_detection" in selected_algorithm_sub_type)
     elif selected_algorithm_type == convolution.name_lib:
-        return convolution.convolve_lib(target_image, convolution.convolution_kernels[selected_algorithm_sub_type])
+        return convolution.convolve_lib(target_image, selected_algorithm_sub_type,
+                                        "edge_detection" in selected_algorithm_sub_type)
     elif selected_algorithm_type == morphological_operators.name:
         return morphological_operators.morphological_operate(target_image, selected_algorithm_sub_type)
 
@@ -64,6 +67,7 @@ class MainTab:
     _image_divider_switch: customtkinter.CTkSwitch
     _square_division_warning_label: customtkinter.CTkLabel
     _bench_start_btn: customtkinter.CTkButton
+    _bench_interrupt_btn: customtkinter.CTkButton
     _bench_progress_bar: customtkinter.CTkProgressBar
     _algorithm_label: customtkinter.CTkLabel
     _algorithm_type_menu: customtkinter.CTkOptionMenu
@@ -98,6 +102,8 @@ class MainTab:
     _resized_target_image: Image.Image | None = None
     _bench_all_configurations: bool = False
     _is_square_dividing: bool = False
+    _bench_interrupt_signal: bool = False
+    _latest_bench_pool: PoolType | None = None
 
     def __init__(self, container: customtkinter.CTkTabview):
         """
@@ -217,19 +223,26 @@ class MainTab:
         self._algorithm_type_menu.grid(row=9, column=0, sticky="nw", padx=(60, 0))
         # Algorithm sub_type menu
         self._algorithm_sub_type_menu = customtkinter.CTkOptionMenu(self._main_container, dynamic_resizing=False,
+                                                                    width=200,
                                                                     command=self._on_algorithm_sub_type_menu_change)
 
-        # Start benchmark button
-        self._bench_start_btn = customtkinter.CTkButton(self._main_container, text="Start Benchmark",
-                                                        command=self._on_start_bench_btn)
-        self._bench_start_btn.grid(row=10, column=0, columnspan=2, padx=(50, 0), sticky="ewn", pady=(10, 10))
-        # Benchmark progress bar
-        self._bench_progress_bar = customtkinter.CTkProgressBar(self._main_container, mode="indeterminate",
-                                                                indeterminate_speed=0.5, width=512)
         # Status label
         self._status_label = customtkinter.CTkLabel(self._main_container, text="Status:",
                                                     font=customtkinter.CTkFont(size=18, weight="bold"))
-        self._status_label.grid(row=11, column=0, sticky="nw", padx=(20, 0))
+        self._status_label.grid(row=10, column=0, sticky="nw", padx=(20, 0))
+
+        # Start benchmark button
+        self._bench_start_btn = customtkinter.CTkButton(self._main_container, text="Start Benchmark", width=200,
+                                                        command=self._on_start_bench_btn)
+        self._bench_start_btn.grid(row=11, column=0, padx=(0, 50), sticky="en", pady=(10, 10))
+        # Start Interrupt button
+        self._bench_interrupt_btn = customtkinter.CTkButton(self._main_container, text="Stop Benchmark", width=200,
+                                                            command=self._on_interrupt_bench_btn, state="disabled",
+                                                            fg_color="#c40000", hover_color="#780000")
+        self._bench_interrupt_btn.grid(row=11, column=1, sticky="wn", pady=(10, 10))
+        # Benchmark progress bar
+        self._bench_progress_bar = customtkinter.CTkProgressBar(self._main_container, mode="indeterminate",
+                                                                indeterminate_speed=0.5, width=512)
         # Status text
         self._status_text = customtkinter.CTkLabel(self._main_container, text="Waiting for benchmark to start...",
                                                    font=customtkinter.CTkFont(size=18))
@@ -488,8 +501,10 @@ class MainTab:
         self._algorithm_type_menu.configure(state=toggled)
         self._algorithm_sub_type_menu.configure(state=toggled)
         if toggled == "normal":
+            self._bench_interrupt_btn.configure(state="disabled")
             self._bench_progress_bar.grid_forget()
         else:
+            self._bench_interrupt_btn.configure(state="normal")
             self._bench_progress_bar.grid(row=12, column=2, sticky="e", padx=(0, 20))
 
     def _is_square_doable(self) -> bool:
@@ -587,16 +602,26 @@ class MainTab:
         t = threading.Thread(target=self._bench_dispatch)
         t.start()
 
+    def _on_interrupt_bench_btn(self) -> None:
+        """
+        Called when the interrupt benchmark button is pressed. Stops the benchmark.
+        :return:
+        """
+        self._bench_interrupt_signal = True
+        self._latest_bench_pool.terminate()
+
     def _bench_dispatch(self) -> None:
         result_timestamps: dict[str, float] = {}
         bench_config_sets: list[int] = self._get_bench_configuration_sets()
         result_image: Image.Image | None = None
         benchmark: callable = generic_benchmark
+        msgbox_text: str = "Benchmark completed successfully.\nLook at benchmark tab for results.\n"
+        msgbox_icon: str = "check"
         for index, cpu_set in enumerate(bench_config_sets):
             self._status_text.configure(text=f"Running benchmark with {cpu_set} CPU core(s)...")
             self._target_cpu_core_set = cpu_set
             sub_images: list[Image.Image] = self._image_divider_implementation()
-            pool = Pool(cpu_set)
+            self._latest_bench_pool = Pool(cpu_set)
             args = ()
             if self._selected_algorithm_sub_type not in self._specialized_runners:
                 args = [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type) for sub_image in
@@ -611,18 +636,30 @@ class MainTab:
                         "diameter"], self._selected_algorithm_sub_type_params["sigma_color"],
                              self._selected_algorithm_sub_type_params["sigma_space"]) for sub_image in sub_images]
             start_time = time.time()
-            result_images = pool.starmap(benchmark, args)
-            pool.close()
-            pool.join()
+            async_handler = self._latest_bench_pool.starmap_async(benchmark, args)
+            self._latest_bench_pool.close()
+            while True:
+                if self._bench_interrupt_signal:
+                    self._latest_bench_pool.terminate()
+                    break
+                elif async_handler.ready():
+                    break
+                else:
+                    time.sleep(0.05)
+            if self._bench_interrupt_signal:
+                break
             end_time = time.time()
             result_timestamps["Serial" if cpu_set == 1 else f"P ({cpu_set})"] = end_time - start_time
             if index == len(bench_config_sets) - 1:
-                result_image = self._image_merger_implementation(result_images)
-            time.sleep(5)
-        CTkMessagebox(title="Benchmark", message="Benchmark completed successfully.\n"
-                                                 f"Look at benchmark tab for results.\n",
-                      icon="check")
-        self._benchmark_tab.set_result_image(result_image)
-        self._benchmark_tab.set_timestamps(result_timestamps)
+                result_image = self._image_merger_implementation([img for img in async_handler.get()])
+        if self._bench_interrupt_signal:
+            self._bench_interrupt_signal = False
+            msgbox_text = "Benchmark interrupted."
+            msgbox_icon = "warning"
+        else:
+            self._benchmark_tab.set_result_image(result_image)
+            self._benchmark_tab.set_timestamps(result_timestamps)
         self._toggle_controls()
-        self._status_text.configure(text="Benchmark completed.")
+        CTkMessagebox(title="Benchmark", message=msgbox_text,
+                      icon=msgbox_icon)
+        self._status_text.configure(text=msgbox_text.split(".")[0])

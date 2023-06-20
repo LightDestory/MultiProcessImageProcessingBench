@@ -13,7 +13,7 @@ from customtkinter import filedialog
 
 CURRENT_POSITION = Path(__file__).parent
 sys.path.append(f"{CURRENT_POSITION}/../../../")
-from src.algorithms import morphological_operators, convolution, noise_reduction
+from src.algorithms import morphological_operators, convolution, noise_reduction, canny
 from ..components.image_viewer_top_level import ImageViewerTopLevel
 from .bench_tab import BenchTab
 
@@ -41,6 +41,13 @@ def three_parameters_benchmark(target_image: Image.Image,
                                parameter_3: int) -> Image.Image:
     if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
         return noise_reduction.bilateral_filter(target_image, parameter_1, parameter_2, parameter_3)
+
+
+def four_parameters_benchmark(target_image: Image.Image,
+                              selected_algorithm_sub_type: str, parameter_1: int, parameter_2: int,
+                              parameter_3: int, parameter_4: int) -> Image.Image:
+    if selected_algorithm_sub_type == canny.canny_sub_types[0]:
+        return canny.canny_edge_detector(target_image, parameter_1, parameter_2, parameter_3, parameter_4)
 
 
 class MainTab:
@@ -86,6 +93,7 @@ class MainTab:
         convolution.name_lib: True,
         morphological_operators.name: True,
         noise_reduction.name: True,
+        canny.name: True
     }
     # Algorithm states
     _selected_algorithm_type: str = ""
@@ -93,7 +101,8 @@ class MainTab:
     _selected_algorithm_sub_type_params: dict[str, int] = {}
     _specialized_runners: dict[str, callable] = {
         noise_reduction.noise_reduction_sub_types[0]: one_parameter_benchmark,
-        noise_reduction.noise_reduction_sub_types[1]: three_parameters_benchmark
+        noise_reduction.noise_reduction_sub_types[1]: three_parameters_benchmark,
+        canny.canny_sub_types[0]: four_parameters_benchmark
     }
     # Logic states
     _available_cpu_core: int = multiprocessing.cpu_count()
@@ -338,6 +347,7 @@ class MainTab:
         for i in range(self._target_cpu_core_set):
             left = i * line_width
             right = left + line_width
+            print(lines[i].size)
             tmp_image.paste(lines[i], (left, 0, right, tmp_image.height))
         return tmp_image
 
@@ -528,9 +538,11 @@ class MainTab:
             if value == convolution.name_native or value == convolution.name_lib:
                 values = list(convolution.convolution_kernels.keys())
             elif value == morphological_operators.name:
-                values: list[str] = morphological_operators.morphological_sub_types
+                values = morphological_operators.morphological_sub_types
             elif value == noise_reduction.name:
-                values: list[str] = noise_reduction.noise_reduction_sub_types
+                values = noise_reduction.noise_reduction_sub_types
+            elif value == canny.name:
+                values = canny.canny_sub_types
             self._algorithm_sub_type_menu.configure(values=values)
             self._algorithm_sub_type_menu.grid(row=9, column=1, sticky="new", padx=(0, 20))
             self._algorithm_sub_type_menu.set(values[0])
@@ -558,6 +570,13 @@ class MainTab:
                     "sigma_color": 10,
                     "sigma_space": 15
                 }
+        elif self._selected_algorithm_type == canny.name:
+            self._selected_algorithm_sub_type_params = {
+                "gauss_size": 3,
+                "sigma": 1,
+                "low_threshold": 20,
+                "high_threshold": 40
+            }
         for param in self._selected_algorithm_sub_type_params:
             user_input: str = customtkinter.CTkInputDialog(text=f"Please enter the value for '{param}' parameter:",
                                                            title=f"Algorithms Parameters").get_input()
@@ -635,6 +654,11 @@ class MainTab:
                     args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_sub_type_params[
                         "diameter"], self._selected_algorithm_sub_type_params["sigma_color"],
                              self._selected_algorithm_sub_type_params["sigma_space"]) for sub_image in sub_images]
+                elif self._selected_algorithm_sub_type == canny.canny_sub_types[0]:
+                    args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_sub_type_params[
+                        "gauss_size"], self._selected_algorithm_sub_type_params["sigma"],
+                             self._selected_algorithm_sub_type_params["low_threshold"],
+                             self._selected_algorithm_sub_type_params["high_threshold"]) for sub_image in sub_images]
             start_time = time.time()
             async_handler = self._latest_bench_pool.starmap_async(benchmark, args)
             self._latest_bench_pool.close()

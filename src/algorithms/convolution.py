@@ -2,8 +2,24 @@ from PIL import Image
 from scipy.signal import convolve2d
 import numpy as np
 
+
+def generate_gauss_kernel(kernel_size: int, sigma: int) -> list[list[float]]:
+    """
+    Generates a Gaussian kernel of the given size and sigma.
+    :param kernel_size: The size of the kernel.
+    :param sigma: The sigma value.
+    :return: The generated kernel.
+    """
+    kernel = np.fromfunction(lambda x, y: (1 / (2 * np.pi * sigma ** 2)) * np.exp(
+        -((x - (kernel_size - 1) / 2) ** 2 + (y - (kernel_size - 1) / 2) ** 2) / (2 * sigma ** 2)),
+                             (kernel_size, kernel_size))
+    return (kernel / np.sum(kernel)).tolist()
+
+
 name_native: str = "Convolution (Native)"
 name_lib: str = "Convolution (SciPy)"
+
+parameterized_kernel_list: list[str] = ["blur (gaussian Parametrized)"]
 
 convolution_kernels: dict[str, list[list[float]]] = {
     "identity": [[0, 0, 0], [0, 1, 0], [0, 0, 0]],
@@ -15,27 +31,20 @@ convolution_kernels: dict[str, list[list[float]]] = {
     "edge_detection (laplacian)": [[0, -1, 0], [-1, 4, -1], [0, -1, 0]],
     "sharpen": [[0, -1, 0], [-1, 5, -1], [0, -1, 0]],
     "blur (low-pass)": [[1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9]],
-    "blur (gaussian 3x3)": [[1 / 16, 2 / 16, 1 / 16], [2 / 16, 4 / 16, 2 / 16], [1 / 16, 2 / 16, 1 / 16]],
-    "blur (gaussian 5x5)": [
-        [1 / 256, 4 / 256, 6 / 256, 4 / 256, 1 / 256],
-        [4 / 256, 16 / 256, 24 / 256, 16 / 256, 4 / 256],
-        [6 / 256, 24 / 256, 36 / 256, 24 / 256, 6 / 256],
-        [4 / 256, 16 / 256, 24 / 256, 16 / 256, 4 / 256],
-        [1 / 256, 4 / 256, 6 / 256, 4 / 256, 1 / 256]
-    ]
+    "blur (gaussian Dim: 3x3 Sigma: 1)": generate_gauss_kernel(3, 1),
+    "blur (gaussian Dim: 5x5 Sigma 1)": generate_gauss_kernel(5, 1)
 }
 
 
-def convolve_native(target_image: Image.Image, kernel_name: str, gray_scale: bool = False) -> Image.Image:
+def convolve_native(target_image: Image.Image, kernel: list[list[float]], gray_scale: bool = False) -> Image.Image:
     """
     Convolves the target image with the given kernel.
     :param target_image: The image to convolve.
-    :param kernel_name: The name of the kernel to convolve with.
+    :param kernel: The kernel to convolve with.
     :param gray_scale: Whether to convert the image to grayscale before convolving.
     :return: The convolved image.
     """
     img_type: str = "L" if gray_scale else "RGB"
-    kernel: list[list[float]] = convolution_kernels[kernel_name]
     image_width, image_height = target_image.size
     kernel_size: int = len(kernel)
     padding: int = int(kernel_size / 2)
@@ -77,11 +86,11 @@ def convolve_native(target_image: Image.Image, kernel_name: str, gray_scale: boo
     return result_image
 
 
-def convolve_lib(target_image: Image.Image, kernel_name: str, gray_scale: bool = False) -> Image.Image:
+def convolve_lib(target_image: Image.Image, kernel: list[list[float]], gray_scale: bool = False) -> Image.Image:
     """
     Convolves using the scipy library the target image with the given kernel.
     :param target_image: The image to convolve.
-    :param kernel_name: The name of kernel to convolve with.
+    :param kernel: The kernel to convolve with.
     :param gray_scale: Whether to convert the image to grayscale before convolving.
     :return: The convolved image.
     """
@@ -90,11 +99,10 @@ def convolve_lib(target_image: Image.Image, kernel_name: str, gray_scale: bool =
     image_array = np.array(target_image)
     output_array = np.zeros_like(image_array, dtype=np.float32)
     if gray_scale:
-        output_array = convolve2d(image_array, convolution_kernels[kernel_name], mode='same', boundary='symm')
+        output_array = convolve2d(image_array, kernel, mode='same', boundary='symm')
     else:
         for channel in range(3):
             channel_array = image_array[:, :, channel]
-            output_array[:, :, channel] = convolve2d(channel_array,
-                                                     convolution_kernels[kernel_name], mode='same', boundary='symm')
+            output_array[:, :, channel] = convolve2d(channel_array, kernel, mode='same', boundary='symm')
     output_array = np.clip(output_array, 0, 255)
     return Image.fromarray(output_array.astype(np.uint8))

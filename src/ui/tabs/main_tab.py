@@ -21,31 +21,39 @@ from .bench_tab import BenchTab
 def generic_benchmark(target_image: Image.Image, selected_algorithm_type: str,
                       selected_algorithm_sub_type: str) -> Image.Image:
     if selected_algorithm_type == convolution.name_native:
-        return convolution.convolve_native(target_image, selected_algorithm_sub_type,
+        return convolution.convolve_native(target_image, convolution.convolution_kernels[selected_algorithm_sub_type],
                                            "edge_detection" in selected_algorithm_sub_type)
     elif selected_algorithm_type == convolution.name_lib:
-        return convolution.convolve_lib(target_image, selected_algorithm_sub_type,
+        return convolution.convolve_lib(target_image, convolution.convolution_kernels[selected_algorithm_sub_type],
                                         "edge_detection" in selected_algorithm_sub_type)
     elif selected_algorithm_type == morphological_operators.name:
         return morphological_operators.morphological_operate(target_image, selected_algorithm_sub_type)
 
 
 def one_parameter_benchmark(target_image: Image.Image,
-                            selected_algorithm_sub_type: str, parameter: int) -> Image.Image:
+                            selected_algorithm_sub_type: str, parameter) -> Image.Image:
     if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
         return noise_reduction.mean_filter(target_image, parameter)
 
 
+def two_parameter_benchmark(target_image: Image.Image,
+                            selected_algorithm_sub_type: str, parameter_1, parameter_2) -> Image.Image:
+    if parameter_1 == convolution.name_native:
+        return convolution.convolve_native(target_image, parameter_2)
+    elif parameter_1 == convolution.name_lib:
+        return convolution.convolve_lib(target_image, parameter_2)
+
+
 def three_parameters_benchmark(target_image: Image.Image,
-                               selected_algorithm_sub_type: str, parameter_1: int, parameter_2: int,
-                               parameter_3: int) -> Image.Image:
+                               selected_algorithm_sub_type: str, parameter_1, parameter_2,
+                               parameter_3) -> Image.Image:
     if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
         return noise_reduction.bilateral_filter(target_image, parameter_1, parameter_2, parameter_3)
 
 
 def four_parameters_benchmark(target_image: Image.Image,
-                              selected_algorithm_sub_type: str, parameter_1: int, parameter_2: int,
-                              parameter_3: int, parameter_4: int) -> Image.Image:
+                              selected_algorithm_sub_type: str, parameter_1, parameter_2,
+                              parameter_3, parameter_4) -> Image.Image:
     if selected_algorithm_sub_type == canny.canny_sub_types[0]:
         return canny.canny_edge_detector(target_image, parameter_1, parameter_2, parameter_3, parameter_4)
 
@@ -100,6 +108,7 @@ class MainTab:
     _selected_algorithm_sub_type: str = ""
     _selected_algorithm_sub_type_params: dict[str, int] = {}
     _specialized_runners: dict[str, callable] = {
+        convolution.parameterized_kernel_list[0]: two_parameter_benchmark,
         noise_reduction.noise_reduction_sub_types[0]: one_parameter_benchmark,
         noise_reduction.noise_reduction_sub_types[1]: three_parameters_benchmark,
         canny.canny_sub_types[0]: four_parameters_benchmark
@@ -347,7 +356,6 @@ class MainTab:
         for i in range(self._target_cpu_core_set):
             left = i * line_width
             right = left + line_width
-            print(lines[i].size)
             tmp_image.paste(lines[i], (left, 0, right, tmp_image.height))
         return tmp_image
 
@@ -537,6 +545,9 @@ class MainTab:
             values: list[str] = []
             if value == convolution.name_native or value == convolution.name_lib:
                 values = list(convolution.convolution_kernels.keys())
+                for parameterized_kernel in convolution.parameterized_kernel_list:
+                    if parameterized_kernel not in values:
+                        values.append(parameterized_kernel)
             elif value == morphological_operators.name:
                 values = morphological_operators.morphological_sub_types
             elif value == noise_reduction.name:
@@ -561,21 +572,25 @@ class MainTab:
             return
         self._selected_algorithm_sub_type_params = {}
         self._selected_algorithm_sub_type = value
-        if self._selected_algorithm_type == noise_reduction.name:
-            if value == noise_reduction.noise_reduction_sub_types[0]:  # mean filter
-                self._selected_algorithm_sub_type_params = {"kernel_size": 3}
-            else:  # bilateral filter
-                self._selected_algorithm_sub_type_params = {
-                    "diameter": 5,
-                    "sigma_color": 10,
-                    "sigma_space": 15
-                }
-        elif self._selected_algorithm_type == canny.name:
+        if self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
+            self._selected_algorithm_sub_type_params = {"kernel_size": 3}
+        elif self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
+            self._selected_algorithm_sub_type_params = {
+                "diameter": 5,
+                "sigma_color": 10,
+                "sigma_space": 15
+            }
+        elif self._selected_algorithm_sub_type == canny.canny_sub_types[0]:
             self._selected_algorithm_sub_type_params = {
                 "gauss_size": 3,
                 "sigma": 1,
                 "low_threshold": 20,
                 "high_threshold": 40
+            }
+        elif self._selected_algorithm_sub_type == convolution.parameterized_kernel_list[0]:
+            self._selected_algorithm_sub_type_params = {
+                "kernel_size": 3,
+                "sigma": 1
             }
         for param in self._selected_algorithm_sub_type_params:
             user_input: str = customtkinter.CTkInputDialog(text=f"Please enter the value for '{param}' parameter:",
@@ -587,6 +602,11 @@ class MainTab:
                               icon="warning")
             else:
                 self._selected_algorithm_sub_type_params[param] = int(user_input)
+        if self._selected_algorithm_sub_type == convolution.parameterized_kernel_list[0]:
+            convolution.convolution_kernels[self._selected_algorithm_sub_type] = convolution.generate_gauss_kernel(
+                self._selected_algorithm_sub_type_params["kernel_size"],
+                self._selected_algorithm_sub_type_params["sigma"]
+            )
 
     def _get_bench_configuration_sets(self) -> list[int]:
         """
@@ -659,6 +679,10 @@ class MainTab:
                         "gauss_size"], self._selected_algorithm_sub_type_params["sigma"],
                              self._selected_algorithm_sub_type_params["low_threshold"],
                              self._selected_algorithm_sub_type_params["high_threshold"]) for sub_image in sub_images]
+                elif self._selected_algorithm_sub_type == convolution.parameterized_kernel_list[0]:
+                    args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_type,
+                             convolution.convolution_kernels[self._selected_algorithm_sub_type])
+                            for sub_image in sub_images]
             start_time = time.time()
             async_handler = self._latest_bench_pool.starmap_async(benchmark, args)
             self._latest_bench_pool.close()

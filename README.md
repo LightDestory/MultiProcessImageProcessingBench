@@ -12,9 +12,13 @@
   <h2 align="center">MultiProcess Image Processing Bench</h2>
   
   <p align="center">
-      A tool designed for benchmarking parallelizable image processing algorithms using Python and the multiprocessing module
+      A PoC of a tool designed for benchmarking parallelizable image processing algorithms using Python and the multiprocessing module.
   </p>
-  
+
+  <p align="center">
+      <i>It has no real practical use because Python does not offer optimal performance for image processing. It was simply faster to implement in Python than in C++.</i>
+  </p>  
+
   <br />
   <br />
 

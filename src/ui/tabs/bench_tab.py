@@ -83,18 +83,6 @@ class BenchTab:
         else:
             self._top_level_image_viewer.set_image(self._plot_image)
 
-    def set_result_image(self, image: Image.Image) -> None:
-        """
-        Displays the result image in the tab.
-        :param image: The merged image.
-        :return:
-        """
-        self._result_image = image.copy()
-        self._result_image_thumbnail = customtkinter.CTkImage(light_image=self._result_image.copy().resize((512, 512)),
-                                                              size=(512, 512))
-        self._result_image_viewer.configure(image=self._result_image_thumbnail)
-        self._refresh_top_level_image_viewer(self._result_image_viewer_text)
-
     def _on_preview_image_click(self, event) -> None:
         """
         Called when the preview image is clicked. Opens the image in the image viewer.
@@ -113,7 +101,29 @@ class BenchTab:
             self._top_level_image_viewer.focus()
         self._refresh_top_level_image_viewer(event.widget.cget("text"))
 
-    def set_timestamps(self, timestamps: dict[str, float]) -> None:
+    def update_bench_view(self, image: Image.Image, timestamps: dict[str, float]) -> None:
+        """
+        Updates the Bench tab with the new image and timestamps.
+        :param image: The merged image.
+        :param timestamps: The timestamps.
+        :return:
+        """
+        self._set_result_image(image)
+        self._set_timestamps(timestamps)
+
+    def _set_result_image(self, image: Image.Image) -> None:
+        """
+        Displays the result image in the tab.
+        :param image: The merged image.
+        :return:
+        """
+        self._result_image = image.copy()
+        self._result_image_thumbnail = customtkinter.CTkImage(light_image=self._result_image.copy().resize((512, 512)),
+                                                              size=(512, 512))
+        self._result_image_viewer.configure(image=self._result_image_thumbnail)
+        self._refresh_top_level_image_viewer(self._result_image_viewer_text)
+
+    def _set_timestamps(self, timestamps: dict[str, float]) -> None:
         """
         Displays plot and timestamps
         :param timestamps: The timestamps.

@@ -7,8 +7,6 @@ from .convolution import convolution_kernels
 np.seterr(divide='ignore', invalid='ignore', over='ignore')
 name: str = "Canny Edge Detection"
 
-canny_sub_types: list[str] = ["Canny 4 Parameters"]
-
 
 def _generate_gauss_kernel(kernel_length: int, sigma: int) -> np.ndarray:
     """
@@ -121,8 +119,10 @@ def _link_edges(image_array: np.ndarray) -> np.ndarray:
     for i in range(0, height):
         for j in range(0, width):
             if image_array[i][j] == 75:
-                if ((image_array[i + 1][j] == 255) or (image_array[i - 1][j] == 255) or (image_array[i][j + 1] == 255) or (
-                        image_array[i][j - 1] == 255) or (image_array[i + 1][j + 1] == 255) or (image_array[i - 1][j - 1] == 255)):
+                if ((image_array[i + 1][j] == 255) or (image_array[i - 1][j] == 255) or (
+                        image_array[i][j + 1] == 255) or (
+                        image_array[i][j - 1] == 255) or (image_array[i + 1][j + 1] == 255) or (
+                        image_array[i - 1][j - 1] == 255)):
                     image_array[i][j] = 255
                 else:
                     image_array[i][j] = 0

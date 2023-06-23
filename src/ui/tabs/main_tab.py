@@ -1,3 +1,4 @@
+import pprint
 import threading
 import time
 import sys
@@ -21,40 +22,41 @@ from .bench_tab import BenchTab
 def generic_benchmark(target_image: Image.Image, selected_algorithm_type: str,
                       selected_algorithm_sub_type: str) -> Image.Image:
     if selected_algorithm_type == convolution.name_native:
-        return convolution.convolve_native(target_image, convolution.convolution_kernels[selected_algorithm_sub_type],
+        return convolution.convolve_native(target_image,
+                                           convolution.convolution_kernels[selected_algorithm_sub_type],
                                            "edge_detection" in selected_algorithm_sub_type)
     elif selected_algorithm_type == convolution.name_lib:
         return convolution.convolve_lib(target_image, convolution.convolution_kernels[selected_algorithm_sub_type],
                                         "edge_detection" in selected_algorithm_sub_type)
-    elif selected_algorithm_type == morphological_operators.name:
-        return morphological_operators.morphological_operate(target_image, selected_algorithm_sub_type)
+    else:
+        raise ValueError(f"Invalid algorithm type: {selected_algorithm_type}")
 
 
-def one_parameter_benchmark(target_image: Image.Image,
-                            selected_algorithm_sub_type: str, parameter) -> Image.Image:
-    if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
+def one_parameter_benchmark(target_image: Image.Image, algorithm: str, parameter) -> Image.Image:
+    if algorithm == noise_reduction.noise_reduction_sub_types[0]:
         return noise_reduction.mean_filter(target_image, parameter)
+    elif algorithm == convolution.name_native:
+        return convolution.convolve_native(target_image, parameter)
+    elif algorithm == convolution.name_lib:
+        return convolution.convolve_lib(target_image, parameter)
 
 
-def two_parameter_benchmark(target_image: Image.Image,
-                            selected_algorithm_sub_type: str, parameter_1, parameter_2) -> Image.Image:
-    if parameter_1 == convolution.name_native:
-        return convolution.convolve_native(target_image, parameter_2)
-    elif parameter_1 == convolution.name_lib:
-        return convolution.convolve_lib(target_image, parameter_2)
+def two_parameter_benchmark(target_image: Image.Image, algorithm: str, parameter_1, parameter_2) -> Image.Image:
+    if algorithm == morphological_operators.name:
+        return morphological_operators.morphological_operate(target_image, parameter_1, parameter_2)
 
 
 def three_parameters_benchmark(target_image: Image.Image,
-                               selected_algorithm_sub_type: str, parameter_1, parameter_2,
+                               algorithm: str, parameter_1, parameter_2,
                                parameter_3) -> Image.Image:
-    if selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
+    if algorithm == noise_reduction.noise_reduction_sub_types[1]:
         return noise_reduction.bilateral_filter(target_image, parameter_1, parameter_2, parameter_3)
 
 
 def four_parameters_benchmark(target_image: Image.Image,
-                              selected_algorithm_sub_type: str, parameter_1, parameter_2,
+                              algorithm: str, parameter_1, parameter_2,
                               parameter_3, parameter_4) -> Image.Image:
-    if selected_algorithm_sub_type == canny.canny_sub_types[0]:
+    if algorithm == canny.name:
         return canny.canny_edge_detector(target_image, parameter_1, parameter_2, parameter_3, parameter_4)
 
 
@@ -101,17 +103,19 @@ class MainTab:
         convolution.name_lib: True,
         morphological_operators.name: True,
         noise_reduction.name: True,
-        canny.name: True
+        canny.name: False
     }
     # Algorithm states
     _selected_algorithm_type: str = ""
     _selected_algorithm_sub_type: str = ""
-    _selected_algorithm_sub_type_params: dict[str, int] = {}
+    _selected_algorithm_params: dict[str, dict] = {}
     _specialized_runners: dict[str, callable] = {
-        convolution.parameterized_kernel_list[0]: two_parameter_benchmark,
+        convolution.parameterized_kernel_list[0]: one_parameter_benchmark,
         noise_reduction.noise_reduction_sub_types[0]: one_parameter_benchmark,
         noise_reduction.noise_reduction_sub_types[1]: three_parameters_benchmark,
-        canny.canny_sub_types[0]: four_parameters_benchmark
+        canny.name: four_parameters_benchmark,
+        morphological_operators.morphological_sub_types[0]: two_parameter_benchmark,
+        morphological_operators.morphological_sub_types[1]: two_parameter_benchmark
     }
     # Logic states
     _available_cpu_core: int = multiprocessing.cpu_count()
@@ -534,33 +538,41 @@ class MainTab:
 
     def _on_algorithm_type_menu_change(self, value: str) -> None:
         """
-        Called when the algorithm type menu is changed. Updates the algorithm sub type menu.
+        Called when the algorithm type menu is changed.
         :param value: The new value of the algorithm type menu.
         :return:
         """
         if value == self._selected_algorithm_type:
             return
+        self._selected_algorithm_sub_type = ""
         self._selected_algorithm_type = value
         if self._implemented_algorithms[value]:
-            values: list[str] = []
-            if value == convolution.name_native or value == convolution.name_lib:
-                values = list(convolution.convolution_kernels.keys())
-                for parameterized_kernel in convolution.parameterized_kernel_list:
-                    if parameterized_kernel not in values:
-                        values.append(parameterized_kernel)
-            elif value == morphological_operators.name:
-                values = morphological_operators.morphological_sub_types
-            elif value == noise_reduction.name:
-                values = noise_reduction.noise_reduction_sub_types
-            elif value == canny.name:
-                values = canny.canny_sub_types
-            self._algorithm_sub_type_menu.configure(values=values)
-            self._algorithm_sub_type_menu.grid(row=9, column=1, sticky="new", padx=(0, 20))
-            self._algorithm_sub_type_menu.set(values[0])
-            self._on_algorithm_sub_type_menu_change(values[0])
+            self._configure_sub_type()
         else:
             self._algorithm_sub_type_menu.grid_forget()
-            self._selected_algorithm_sub_type = ""
+            self._check_algorithm_params()
+
+    def _configure_sub_type(self) -> None:
+        """
+        Configures the algorithm sub type menu.
+        :return:
+        """
+        if self._selected_algorithm_type in [convolution.name_native, convolution.name_lib]:
+            values = list(convolution.convolution_kernels.keys())
+            for parameterized_kernel in convolution.parameterized_kernel_list:
+                if parameterized_kernel not in values:
+                    values.append(parameterized_kernel)
+        elif self._selected_algorithm_type == morphological_operators.name:
+            values = morphological_operators.morphological_sub_types
+        elif self._selected_algorithm_type == noise_reduction.name:
+            values = noise_reduction.noise_reduction_sub_types
+        else:
+            raise NotImplementedError(f"Algorithm type {self._selected_algorithm_type} has not sub types "
+                                      f"implemented yet.")
+        self._algorithm_sub_type_menu.configure(values=values)
+        self._algorithm_sub_type_menu.grid(row=9, column=1, sticky="new", padx=(0, 20))
+        self._algorithm_sub_type_menu.set(values[0])
+        self._on_algorithm_sub_type_menu_change(values[0])
 
     def _on_algorithm_sub_type_menu_change(self, value: str) -> None:
         """
@@ -570,42 +582,69 @@ class MainTab:
         """
         if value == self._selected_algorithm_sub_type:
             return
-        self._selected_algorithm_sub_type_params = {}
         self._selected_algorithm_sub_type = value
-        if self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
-            self._selected_algorithm_sub_type_params = {"kernel_size": 3}
-        elif self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
-            self._selected_algorithm_sub_type_params = {
-                "diameter": 5,
-                "sigma_color": 10,
-                "sigma_space": 15
+        self._check_algorithm_params()
+
+    def _check_algorithm_params(self) -> None:
+        """
+        Checks and updates the algorithm parameters.
+        :return:
+        """
+        self._selected_algorithm_params = {}
+        if self._selected_algorithm_type == canny.name:
+            self._selected_algorithm_params = {
+                "gauss_size": {"value": 3, "type": int},
+                "sigma": {"value": 1, "type": float},
+                "low_threshold": {"value": 20, "type": int},
+                "high_threshold": {"value": 40, "type": int}
             }
-        elif self._selected_algorithm_sub_type == canny.canny_sub_types[0]:
-            self._selected_algorithm_sub_type_params = {
-                "gauss_size": 3,
-                "sigma": 1,
-                "low_threshold": 20,
-                "high_threshold": 40
+        elif self._selected_algorithm_sub_type in morphological_operators.morphological_sub_types:
+            self._selected_algorithm_params = {
+                "structural_element": {"value": "square", "type": str,
+                                       "choices": list(morphological_operators.structural_elements.keys())},
+            }
+        elif self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
+            self._selected_algorithm_params = {"kernel_size": {"value": 3, "type": int}}
+        elif self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
+            self._selected_algorithm_params = {
+                "diameter": {"value": 5, "type": int},
+                "sigma_color": {"value": 10, "type": int},
+                "sigma_space": {"value": 15, "type": int}
             }
         elif self._selected_algorithm_sub_type == convolution.parameterized_kernel_list[0]:
-            self._selected_algorithm_sub_type_params = {
-                "kernel_size": 3,
-                "sigma": 1
+            self._selected_algorithm_params = {
+                "kernel_size": {"value": 3, "type": int},
+                "sigma": {"value": 1, "type": int}
             }
-        for param in self._selected_algorithm_sub_type_params:
-            user_input: str = customtkinter.CTkInputDialog(text=f"Please enter the value for '{param}' parameter:",
+        if not self._selected_algorithm_params:
+            return
+        for param in self._selected_algorithm_params.keys():
+            user_input_failed: bool = False
+            text: str = f"Insert the value for '{param}' parameter.\nDefault value is {self._selected_algorithm_params[param]['value']}"
+            if "choices" in self._selected_algorithm_params[param]:
+                text += f"\nAvailable choices are: {self._selected_algorithm_params[param]['choices']}"
+            user_input: str = customtkinter.CTkInputDialog(text=text,
                                                            title=f"Algorithms Parameters").get_input()
-            if not user_input.isdigit() or int(user_input) <= 0:
-                CTkMessagebox(title="Invalid input",
-                              message=f"The parameter '{param}'must be a positive integer.\n"
-                                      f"Fallback to default value: {self._selected_algorithm_sub_type_params[param]}",
-                              icon="warning")
+            param_type = self._selected_algorithm_params[param]["type"]
+            if param_type == str:
+                if user_input not in self._selected_algorithm_params[param]["choices"]:
+                    user_input_failed = True
+                else:
+                    self._selected_algorithm_params[param]["value"] = user_input
             else:
-                self._selected_algorithm_sub_type_params[param] = int(user_input)
+                if not user_input.isdecimal() or int(user_input) <= 0:
+                    user_input_failed = True
+                else:
+                    self._selected_algorithm_params[param]["value"] = param_type(user_input)
+            if user_input_failed:
+                CTkMessagebox(title="Invalid input",
+                              message=f"The value {user_input} is not a valid parameter for '{param}'.\n"
+                                      f"Fallback to default value: {self._selected_algorithm_params[param]['value']}",
+                              icon="warning")
         if self._selected_algorithm_sub_type == convolution.parameterized_kernel_list[0]:
             convolution.convolution_kernels[self._selected_algorithm_sub_type] = convolution.generate_gauss_kernel(
-                self._selected_algorithm_sub_type_params["kernel_size"],
-                self._selected_algorithm_sub_type_params["sigma"]
+                self._selected_algorithm_params["kernel_size"]["value"],
+                self._selected_algorithm_params["sigma"]["value"]
             )
 
     def _get_bench_configuration_sets(self) -> list[int]:
@@ -646,43 +685,26 @@ class MainTab:
         Called when the interrupt benchmark button is pressed. Stops the benchmark.
         :return:
         """
+        if self._bench_interrupt_signal:
+            return
         self._bench_interrupt_signal = True
-        self._latest_bench_pool.terminate()
 
     def _bench_dispatch(self) -> None:
         result_timestamps: dict[str, float] = {}
         bench_config_sets: list[int] = self._get_bench_configuration_sets()
         result_image: Image.Image | None = None
-        benchmark: callable = generic_benchmark
+        algorithm: str = self._selected_algorithm_sub_type if self._selected_algorithm_sub_type else self._selected_algorithm_type
+        if algorithm in self._specialized_runners:
+            benchmark: callable = self._specialized_runners[algorithm]
+        else:
+            benchmark: callable = generic_benchmark
         msgbox_text: str = "Benchmark completed successfully.\nLook at benchmark tab for results.\n"
         msgbox_icon: str = "check"
         for index, cpu_set in enumerate(bench_config_sets):
             self._status_text.configure(text=f"Running benchmark with {cpu_set} CPU core(s)...")
             self._target_cpu_core_set = cpu_set
-            sub_images: list[Image.Image] = self._image_divider_implementation()
             self._latest_bench_pool = Pool(cpu_set)
-            args = ()
-            if self._selected_algorithm_sub_type not in self._specialized_runners:
-                args = [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type) for sub_image in
-                        sub_images]
-            else:
-                benchmark = self._specialized_runners[self._selected_algorithm_sub_type]
-                if self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[0]:
-                    args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_sub_type_params[
-                        "kernel_size"]) for sub_image in sub_images]
-                elif self._selected_algorithm_sub_type == noise_reduction.noise_reduction_sub_types[1]:
-                    args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_sub_type_params[
-                        "diameter"], self._selected_algorithm_sub_type_params["sigma_color"],
-                             self._selected_algorithm_sub_type_params["sigma_space"]) for sub_image in sub_images]
-                elif self._selected_algorithm_sub_type == canny.canny_sub_types[0]:
-                    args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_sub_type_params[
-                        "gauss_size"], self._selected_algorithm_sub_type_params["sigma"],
-                             self._selected_algorithm_sub_type_params["low_threshold"],
-                             self._selected_algorithm_sub_type_params["high_threshold"]) for sub_image in sub_images]
-                elif self._selected_algorithm_sub_type == convolution.parameterized_kernel_list[0]:
-                    args = [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_type,
-                             convolution.convolution_kernels[self._selected_algorithm_sub_type])
-                            for sub_image in sub_images]
+            args = self._generate_pickle_args_package(algorithm)
             start_time = time.time()
             async_handler = self._latest_bench_pool.starmap_async(benchmark, args)
             self._latest_bench_pool.close()
@@ -705,9 +727,40 @@ class MainTab:
             msgbox_text = "Benchmark interrupted."
             msgbox_icon = "warning"
         else:
-            self._benchmark_tab.set_result_image(result_image)
-            self._benchmark_tab.set_timestamps(result_timestamps)
+            self._benchmark_tab.update_bench_view(result_image, result_timestamps)
         self._toggle_controls()
         CTkMessagebox(title="Benchmark", message=msgbox_text,
                       icon=msgbox_icon)
         self._status_text.configure(text=msgbox_text.split(".")[0])
+
+    def _generate_pickle_args_package(self, algorithm: str) -> list[tuple]:
+        """
+        Generates the arguments package for the benchmark function.
+        :param algorithm: The algorithm to be benchmarked.
+        :return: The arguments package for the benchmark function.
+        """
+        sub_images: list[Image.Image] = self._image_divider_implementation()
+        if algorithm not in self._specialized_runners:
+            return [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type) for sub_image in
+                    sub_images]
+        elif algorithm == noise_reduction.noise_reduction_sub_types[0]:
+            return [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_params[
+                "kernel_size"]["value"]) for sub_image in sub_images]
+        elif algorithm == noise_reduction.noise_reduction_sub_types[1]:
+            return [(sub_image, self._selected_algorithm_sub_type, self._selected_algorithm_params[
+                "diameter"]["value"], self._selected_algorithm_params["sigma_color"]["value"],
+                     self._selected_algorithm_params["sigma_space"]["value"]) for sub_image in sub_images]
+        elif algorithm == canny.name:
+            return [(sub_image, self._selected_algorithm_type, self._selected_algorithm_params[
+                "gauss_size"]["value"], self._selected_algorithm_params["sigma"]["value"],
+                     self._selected_algorithm_params["low_threshold"]["value"],
+                     self._selected_algorithm_params["high_threshold"]["value"]) for sub_image in sub_images]
+        elif algorithm == convolution.parameterized_kernel_list[0]:
+            return [(sub_image, self._selected_algorithm_type,
+                     convolution.convolution_kernels[self._selected_algorithm_sub_type])
+                    for sub_image in sub_images]
+        elif algorithm in morphological_operators.morphological_sub_types:
+            return [(sub_image, self._selected_algorithm_type, self._selected_algorithm_sub_type,
+                     morphological_operators.structural_elements[self._selected_algorithm_params["structural_element"]["value"]]) for sub_image in sub_images]
+        else:
+            raise NotImplementedError("This algorithm has not pickle arguments implemented yet.")

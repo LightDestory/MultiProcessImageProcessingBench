@@ -1,0 +1,114 @@
+\documentclass[12pt,oneside,a4paper,PisaPhdThesis, italian]{PhdThesis}
+\usepackage[centertags]{amsmath}
+\usepackage{framed}
+\usepackage{libertine}
+\usepackage{csquotes}
+\usepackage[italian, english]{babel}
+\usepackage[font=small,labelfont=bf,tableposition=top]{caption}
+\usepackage{graphics}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{color}
+\usepackage{hyperref}
+\usepackage{epsfig}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{rawfonts}
+\usepackage{enumerate}
+\usepackage{enumitem}
+\usepackage{capt-of}
+\usepackage{url}
+\usepackage{xspace}
+\usepackage{xthesis} 
+\usepackage{xtocinc}
+\usepackage{listings}    
+\usepackage{courier}
+\usepackage[dvipsnames]{xcolor}
+%Necessari per blocchi di codice
+\definecolor{commentgreen}{rgb}{0,0.45,0}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\definecolor{darkred}{rgb}{0.6,0.0,0.0}
+\definecolor{lightblue}{rgb}{0.0,0.42,0.91}
+\colorlet{punct}{red!60!black}
+\definecolor{delim}{RGB}{20,105,176}
+\colorlet{numb}{magenta!60!black}
+
+\lstset{
+	frame=lines,
+	backgroundcolor=\color{backcolour},
+	basicstyle=\scriptsize\ttfamily,
+	breakatwhitespace=false,         
+	breaklines=true,                 
+	captionpos=b,                    
+	keepspaces=true,                 
+	numbers=left,  
+	numberstyle=\tiny,                 
+	numbersep=5pt,                  
+	showspaces=false,                
+	showstringspaces=false,
+	showtabs=false,                  
+	tabsize=2,
+	framextopmargin=3pt,
+	framexbottommargin=3pt,
+	framexleftmargin=3pt,
+	commentstyle=\color{commentgreen}\ttfamily,
+	keywordstyle=\color{blue}\bfseries,
+	identifierstyle=\color{black}\ttfamily,
+	stringstyle=\color{darkred}\ttfamily,
+}
+\addto\captionsitalian{%
+	\renewcommand{\lstlistingname}{Codice}}
+%END - Necessari per blocchi di codice
+
+%per grafici
+\usepackage{float}
+\usepackage{tikz}
+\usepackage{pgfplots} 
+\pgfplotsset{compat=1.16} 
+\usetikzlibrary{datavisualization}
+%END - Per grafici
+
+\newlength{\defbaselineskip}
+\setlength{\defbaselineskip}{\baselineskip}
+\newcommand{\setlinespacing}[1]%
+           {\setlength{\baselineskip}{#1 \defbaselineskip}}
+\newcommand{\doublespacing}{\setlength{\baselineskip} {2.0 \defbaselineskip}}
+\newcommand{\singlespacing}{\setlength{\baselineskip}{\defbaselineskip}}
+\newcommand{\mycenterline}[1]{\vspace{.1cm}\newline\vspace{.1cm}\centerline{#1}}
+
+
+\begin{document}
+\selectlanguage{italian}
+\graphicspath{ {./components/images/} }
+\input{components/frontespizio}
+
+\chaptertitlestyle{serifbig}
+\pagestyle{serif}
+\setlinespacing{1.15}
+\include{components/introduzione}
+
+\begin{frontmatter}
+\setlinespacing{1.1}
+\pagenumbering{Roman}
+\addtocontents{toc}{\protect\setcounter{tocdepth}{-1}}
+\tableofcontents
+\addtocontents{toc}{\protect\setcounter{tocdepth}{4}}
+\end{frontmatter}
+
+\begin{frontmatter}\end{frontmatter}
+
+\pagenumbering{arabic}
+\include{components/chapters/capitolo1}
+\include{components/chapters/capitolo2}
+\include{components/chapters/capitolo3}
+\include{components/chapters/capitolo4}
+
+
+
+\begin{frontmatter}
+\pagenumbering{arabic} \setcounter{page}{42}
+\include{components/appendix}
+\end{frontmatter}
+\end{document}

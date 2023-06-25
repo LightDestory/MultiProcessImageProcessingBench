@@ -1,0 +1,377 @@
+\appendix
+\chapter{Appendice}
+\setcounter{secnumdepth}{0}
+{\section{Codice Python}\label{appendix:image_subdivision}
+	
+\subsection{Suddivisione in linee}
+
+{\begin{lstlisting}[language=Python, caption={Codice per la suddivisione in linee}, label={appendix:lines_subdivision}]
+def _line_image_sub_divider(self) -> list[Image.Image]:
+"""
+Divide the image using lines.
+:return: A list of the lines that the image is divided into.
+"""
+	tmp_image: Image.Image = self._target_image.copy()
+	if self._target_cpu_core_set == 1:
+		return [tmp_image]
+	sub_images: list[Image.Image] = []
+	line_width = tmp_image.width // self._target_cpu_core_set
+	for i in range(self._target_cpu_core_set):
+		left = i * line_width
+		right = left + line_width
+		sub_images.append(tmp_image.crop((left, 0, right, tmp_image.height)))
+return sub_images
+\end{lstlisting}}
+
+{\begin{lstlisting}[language=Python, caption={Codice per l'unione delle linee}, label={appendix:lines_merge}]
+def _merge_image_lines(self, lines: list[Image.Image]) -> Image.Image:
+"""
+Merge the lines of an image into one image.
+:param lines: The lines to merge.
+:return: The merged image.
+"""
+	if len(lines) == 1:
+		return lines[0]
+	tmp_image = Image.new("RGBA", self._target_image.size)
+	line_width = tmp_image.width // self._target_cpu_core_set
+	for i in range(self._target_cpu_core_set):
+		left = i * line_width
+		right = left + line_width
+		tmp_image.paste(lines[i], (left, 0, right, tmp_image.height))
+	return tmp_image
+\end{lstlisting}}
+\newpage
+\subsection{Suddivisione in quadrati}
+
+{\begin{lstlisting}[language=Python, caption={Codice per la suddivisione in quadrati}, label={appendix:square_subdivision}]
+def _square_image_sub_divider(self) -> list[Image.Image]:
+"""
+Divide the image using squares.
+:return: A list of the squares that the image is divided into.
+"""
+	tmp_image: Image.Image = self._target_image.copy()
+	if self._target_cpu_core_set == 1:
+		return [tmp_image]
+	else:
+		num_parts: int = int(self._target_cpu_core_set ** 0.5)
+		square_size: int = tmp_image.width // num_parts
+		sub_images: list[Image.Image] = []
+		for row in range(num_parts):
+			for column in range(num_parts):
+				x_start: int = column * square_size
+				y_start: int = row * square_size
+				x_end: int = x_start + square_size
+				y_end: int = y_start + square_size
+				sub_images.append(tmp_image.crop((x_start, y_start, x_end, y_end)))
+	return sub_images
+\end{lstlisting}}
+
+{\begin{lstlisting}[language=Python, caption={Codice per l'unione dei quadrati}, label={appendix:squares_merge}]
+def _merge_image_squares(self, squares: list[Image.Image]) -> Image.Image:
+"""
+Merge the squares of an image into one image.
+:param squares: The squares to merge.
+:return: The merged image.
+"""
+	if len(squares) == 1:
+		return squares[0]
+	tmp_image = Image.new("RGBA", self._target_image.size)
+	square_size: int = squares[0].width
+	iterator: int = int(len(squares) ** 0.5)
+	for row in range(iterator):
+		for column in range(iterator):
+			x_start: int = column * square_size
+			y_start: int = row * square_size
+			x_end: int = x_start + square_size
+			y_end: int = y_start + square_size
+			tmp_image.paste(squares[row * iterator + column], (x_start, y_start, x_end, y_end))
+	return tmp_image
+\end{lstlisting}}
+\newpage
+\subsection{Convoluzione}
+{\begin{lstlisting}[language=Python, caption={Codice per la convoluzione}, label={appendix:convolution}]
+def convolve_native(target_image: Image.Image, kernel: list[list[float]], gray_scale: bool = False) -> Image.Image:
+"""
+Convolves the target image with the given kernel.
+:param target_image: The image to convolve.
+:param kernel: The kernel to convolve with.
+:param gray_scale: Whether to convert the image to grayscale before convolving.
+:return: The convolved image.
+"""
+	img_type: str = "L" if gray_scale else "RGB"
+	image_width, image_height = target_image.size
+	kernel_size: int = len(kernel)
+	padding: int = int(kernel_size / 2)
+	result_image: Image.Image = Image.new(img_type, (image_width, image_height))
+	target_image = target_image.convert(img_type)
+	target_pixels = target_image.load()
+	result_pixels = result_image.load()
+	for y in range(image_height):
+		for x in range(image_width):
+			x_start: int = x - padding
+			x_end: int = x + padding + 1
+			y_start: int = y - padding
+			y_end: int = y + padding + 1
+			conv_pixel: list[float, float, float] | float = 0.0 if gray_scale else [0, 0, 0]
+			iterator: int = 0
+			for ky in range(y_start, y_end):
+				for kx in range(x_start, x_end):
+					px = max(0, min(kx, image_width - 1))
+					py = max(0, min(ky, image_height - 1))
+					pixel = target_pixels[px, py]
+					kernel_value = kernel[int(iterator / kernel_size)][iterator % kernel_size]
+					if gray_scale:
+						conv_pixel += pixel * kernel_value
+					else:
+						conv_pixel[0] += pixel[0] * kernel_value
+						conv_pixel[1] += pixel[1] * kernel_value
+						conv_pixel[2] += pixel[2] * kernel_value
+					iterator += 1
+			normalized: tuple[int, int, int] | int
+			if gray_scale:
+				normalized: int = max(0, min(255, int(conv_pixel)))
+			else:
+				normalized: tuple[int, int, int] = (
+					max(0, min(255, int(conv_pixel[0]))),
+					max(0, min(255, int(conv_pixel[1]))),
+					max(0, min(255, int(conv_pixel[2])))
+				)
+			result_pixels[x, y] = normalized
+	return result_image
+\end{lstlisting}}
+\newpage
+\subsection{Generazione Kernel di Gaussian}
+{\begin{lstlisting}[language=Python, caption={Codice per la generazione di un kernel di Gauss}, label={appendix:gauss}]
+def generate_gauss_kernel(kernel_size: int, sigma: int) -> list[list[float]]:
+"""
+Generates a Gaussian kernel of the given size and sigma.
+:param kernel_size: The size of the kernel.
+:param sigma: The sigma value.
+:return: The generated kernel.
+"""
+	kernel = np.fromfunction(lambda x, y: (1 / (2 * np.pi * sigma ** 2)) * np.exp(
+		-((x - (kernel_size - 1) / 2) ** 2 + (y - (kernel_size - 1) / 2) ** 2) / (2 * sigma ** 2)), (kernel_size, kernel_size))
+	return (kernel / np.sum(kernel)).tolist()
+\end{lstlisting}}
+
+\subsection{Operatore Morfologico d'erosione}
+{\begin{lstlisting}[language=Python, caption={Codice dell'operatore morfologico erosione}, label={appendix:erosion}]
+def _erosion(target_image: Image.Image, structural_element: list[list[int]]) -> Image.Image:
+"""
+Applies the erosion operator to an RGB image.
+:param target_image: The image to apply the operator to.
+:param structural_element: The structural element to use.
+:return: The eroded image.
+"""
+	width, height = target_image.size
+	kernel_size: int = len(structural_element)
+	target_image = target_image.convert("RGB")
+	target_pixels = target_image.load()
+	result_image = Image.new("RGB", (width, height))
+	result_pixels = result_image.load()
+	for y in range(height):
+		for x in range(width):
+			pixel_chs: list[int] = [255, 255, 255]
+			for ky in range(kernel_size):
+				for kx in range(kernel_size):
+					px = x + kx - int(kernel_size / 2)
+					py = y + ky - int(kernel_size / 2)
+					if 0 <= px < width and 0 <= py < height:
+						pixel_r, pixel_g, pixel_b = target_pixels[px, py]
+						kernel_value = structural_element[ky][kx]
+						pixel_chs[0] = min(pixel_chs[0], pixel_r - kernel_value)
+						pixel_chs[1] = min(pixel_chs[1], pixel_g - kernel_value)
+						pixel_chs[2] = min(pixel_chs[2], pixel_b - kernel_value)
+			result_pixels[x, y] = (pixel_chs[0], pixel_chs[1], pixel_chs[2])
+	return result_image
+\end{lstlisting}}
+\newpage
+\subsection{Operatore Morfologico dilatazione}
+{\begin{lstlisting}[language=Python, caption={Codice dell'operatore morfologico dilatazione}, label={appendix:dilation}]
+def _dilation(target_image: Image.Image, structural_element: list[list[int]]) -> Image.Image:
+"""
+Applies the dilation operator to an RGB image.
+:param target_image: The image to apply the operator to.
+:param structural_element: The structural element to use.
+:return: The dilated image.
+"""
+	width, height = target_image.size
+	kernel_size: int = len(structural_element)
+	target_image = target_image.convert("RGB")
+	target_pixels = target_image.load()
+	result_image = Image.new("RGB", (width, height))
+	result_pixels = result_image.load()
+	for y in range(height):
+		for x in range(width):
+			pixel_chs: list[int] = [0, 0, 0]
+			for ky in range(kernel_size):
+				for kx in range(kernel_size):
+					px = x + kx - int(kernel_size / 2)
+					py = y + ky - int(kernel_size / 2)
+					if 0 <= px < width and 0 <= py < height:
+						pixel_r, pixel_g, pixel_b = target_pixels[px, py]
+						kernel_value = structural_element[ky][kx]
+						pixel_chs[0] = max(pixel_chs[0], pixel_r + kernel_value)
+						pixel_chs[1] = max(pixel_chs[1], pixel_g + kernel_value)
+						pixel_chs[2] = max(pixel_chs[2], pixel_b + kernel_value)
+			result_pixels[x, y] = (pixel_chs[0], pixel_chs[1], pixel_chs[2])
+	return result_image
+\end{lstlisting}}
+\newpage
+\subsection{Filtro di Media}
+{\begin{lstlisting}[language=Python, caption={Codice del filtro di media}, label={appendix:mean}]
+def mean_filter(target_image: Image.Image, filter_size: int) -> Image.Image:
+"""
+Applies the mean filter to an RGB image.
+:param target_image: The image to apply the operator to.
+:param filter_size: The size of the filter. By default it is 3.
+:return: The filtered image.
+"""	
+	width, height = target_image.size
+	half_size: int = int(filter_size / 2)
+	target_image = target_image.convert("RGB")
+	target_pixels = target_image.load()
+	result_image = Image.new("RGB", (width, height))
+	result_pixels = result_image.load()
+	for x in range(width):
+		for y in range(height):
+			pixel_ch: list[int] = [0, 0, 0]
+			count: int = 0
+			for i in range(-half_size, half_size + 1):
+				for j in range(-half_size, half_size + 1):
+					nx = min(max(x + i, 0), width - 1)
+					ny = min(max(y + j, 0), height - 1)
+					pixel = target_pixels[nx, ny]
+					pixel_ch[0] += pixel[0]
+					pixel_ch[1] += pixel[1]
+					pixel_ch[2] += pixel[2]
+					count += 1
+			result_pixels[x, y] = (int(pixel_ch[0] / count), int(pixel_ch[1] / count), int(pixel_ch[2] / count))
+	return result_image
+\end{lstlisting}}
+\newpage
+\subsection{Filtro Bilaterale}
+{\begin{lstlisting}[language=Python, caption={Codice del filtro bilaterale}, label={appendix:bilateral}]
+def bilateral_filter(target_image: Image.Image, diameter: int, sigma_color: int, sigma_space: int) -> Image.Image:
+"""
+Applies the bilateral filter to an RGB image.
+:param target_image: The image to apply the operator to.
+:param diameter: The diameter of the neighborhood.
+:param sigma_color: The sigma color value. The greater the value, the colors farther to each other will start to get mixed
+:param sigma_space: The sigma space value. The greater its value, the further pixels will mix together, given that their colors lie within the sigmaColor range.
+:return: The filtered image.
+"""
+	def bilateral_filter_gaussian(dist: float, sigma_value: int) -> float:
+		return (1 / (2 * math.pi * sigma_value ** 2)) * math.exp(-(dist ** 2) / (2 * sigma_value ** 2))
+	width, height = target_image.size
+	target_image = target_image.convert("RGB")
+	target_pixels = target_image.load()
+	result_image = Image.new("RGB", (width, height))
+	result_pixels = result_image.load()
+	for x in range(width):
+		for y in range(height):
+			r_acc, g_acc, b_acc = 0.0, 0.0, 0.0
+			w_acc = 0.0
+			for i in range(-diameter, diameter + 1):
+				for j in range(-diameter, diameter + 1):
+					nx = min(max(x + i, 0), width - 1)
+					ny = min(max(y + j, 0), height - 1)
+					pixel = target_pixels[nx, ny]
+					spatial_dist = math.sqrt(i ** 2 + j ** 2)
+					range_dist = math.sqrt((pixel[0] - target_pixels[x, y][0]) ** 2 +
+						(pixel[1] - target_pixels[x, y][1]) ** 2 +
+						(pixel[2] - target_pixels[x, y][2]) ** 2)
+
+					weight = bilateral_filter_gaussian(spatial_dist, sigma_space) * bilateral_filter_gaussian(range_dist, sigma_color)
+					r_acc += pixel[0] * weight
+					g_acc += pixel[1] * weight
+					b_acc += pixel[2] * weight
+					w_acc += weight
+			result_pixels[x, y] = (int(r_acc / w_acc), int(g_acc / w_acc), int(b_acc / w_acc))
+	return result_image
+\end{lstlisting}}
+\newpage
+\subsection{Canny Edge Detection}
+{\begin{lstlisting}[language=Python, caption={Codice del filtro di Canny}, label={appendix:canny}]
+def _non_maximal_supress(gradient_magnitude: np.ndarray, gradient_direction: np.ndarray) -> np.ndarray:
+"""
+Suppresses the non-maximal values in the given gradient magnitude array.
+:param gradient_magnitude: The gradient magnitude array.
+:param gradient_direction: The gradient direction array.
+:return: The suppressed gradient magnitude array.
+"""
+	suppressed_magnitude = np.zeros_like(gradient_magnitude)
+	angles = np.rad2deg(gradient_direction)
+	angles[angles < 0] += 180
+	for i in range(1, gradient_magnitude.shape[0] - 1):
+		for j in range(1, gradient_magnitude.shape[1] - 1):
+			direction = angles[i, j]
+			if (0 <= direction < 22.5) or (157.5 <= direction <= 180):  # 0 degrees
+				neighbors = [gradient_magnitude[i, j - 1], gradient_magnitude[i, j + 1]]
+			elif 22.5 <= direction < 67.5:  # 45 degrees
+				neighbors = [gradient_magnitude[i - 1, j - 1], gradient_magnitude[i + 1, j + 1]]
+			elif 67.5 <= direction < 112.5:  # 90 degrees
+				neighbors = [gradient_magnitude[i - 1, j], gradient_magnitude[i + 1, j]]
+			else:  # 135 degrees
+				neighbors = [gradient_magnitude[i - 1, j + 1], gradient_magnitude[i + 1, j - 1]]
+			if gradient_magnitude[i, j] >= max(neighbors):
+				suppressed_magnitude[i, j] = gradient_magnitude[i, j]
+	return suppressed_magnitude
+
+def _double_threshold(image_array: np.ndarray, low_threshold: int, high_threshold: int) -> np.ndarray:
+"""
+Filters the given image array with the given thresholds.
+:param image_array: The image array.
+:param low_threshold:
+:param high_threshold:
+:return: The filtered image array.
+"""
+	edge_map = np.zeros_like(image_array)
+	edge_map[(image_array >= high_threshold)] = 255
+	edge_map[(image_array >= low_threshold) & (image_array < high_threshold)] = 127
+	return edge_map
+
+def _link_edges(image_array: np.ndarray) -> np.ndarray:
+"""
+Links the edges of the given image array
+:param image_array: The image array.
+:return: Tge image array with the edges linked.
+"""
+	for i in range(1, image_array.shape[0] - 1):
+		for j in range(1, image_array.shape[1] - 1):
+			if image_array[i, j] == 127:
+				if np.max(image_array[i - 1:i + 2, j - 1:j + 2]) == 255:
+					image_array[i, j] = 255
+				else:
+					image_array[i, j] = 0
+	return image_array
+
+
+def canny_edge_detector(target_image: Image.Image, gauss_size: int, sigma: int, low_threshold: int,
+high_threshold: int) -> Image.Image:
+"""
+Applies the canny edge detection algorithm to the given image.
+:param target_image: The image to apply the canny algorithm to.
+:param gauss_size: The size of the gaussian kernel.
+:param sigma: The sigma value for the gaussian kernel.
+:param low_threshold: The low threshold for the double thresholding.
+:param high_threshold: The high threshold for the double thresholding.
+:return: The image with the canny algorithm applied.
+"""
+	target_image = target_image.convert("L")
+	# Phase 1 Smoothing applying gaussian kernel
+	gauss_kernel = generate_gauss_kernel(gauss_size, sigma)
+	gauss_image = convolve_native(target_image, gauss_kernel)
+	# Phase 2 Finding the gradients
+	sobel_x_array = np.array(convolve_native(gauss_image, convolution_kernels["edge_detection (sobel-x)"], True))
+	sobel_y_array = np.array(convolve_native(gauss_image, convolution_kernels["edge_detection (sobel-y)"], True))
+	gradient_magnitude = np.hypot(sobel_x_array, sobel_y_array)
+	gradient_direction = np.arctan2(sobel_y_array, sobel_x_array)
+	# Phase 3 Non-maximal supression
+	supressed = _non_maximal_supress(gradient_magnitude, gradient_direction)
+	# Phase 4 Double thresholding
+	thresholded = _double_threshold(supressed, low_threshold, high_threshold)
+	# Phase 5 Edge tracking by linking edges
+	result_array = _link_edges(thresholded)
+	return Image.fromarray(result_array.astype(np.uint8))
+\end{lstlisting}}

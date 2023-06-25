@@ -1,0 +1,27 @@
+\chapter{Contesto}
+Quando attuabile, la parallelizzazione degli algoritmi di image processing può offrire diversi \textit{vantaggi} significativi:
+\begin{itemize}
+	\item\textit{Maggiore velocità di elaborazione}: la parallelizzazione consente di sfruttare simultaneamente più risorse computazionali, come processori multi-core o unità di elaborazione grafica, come le schede video. Ciò permette di ottenere un aumento significativo della velocità di elaborazione, consentendo di completare le operazioni più rapidamente;
+	\item\textit{Maggiore capacità di elaborazione}: la parallelizzazione consente di elaborare più immagini contemporaneamente o di suddividere un'immagine in diverse regioni per l'elaborazione parallela. Ciò permette di gestire carichi di lavoro più pesanti o complessi senza sacrificare le prestazioni;
+	\item \textit{Miglioramento dell'efficienza energetica per dispositivi mobili o embeded}: l'utilizzo di più unità di elaborazione in parallelo può ridurre il tempo di esecuzione complessivo di un algoritmo. Di conseguenza, si riduce anche il consumo energetico complessivo, poiché le risorse computazionali sono impiegate in modo più efficiente;
+	\item \textit{Elaborazione in tempo reale}: la parallelizzazione può consentire l'elaborazione in tempo reale di immagini o video, consentendo di ottenere risultati immediati e reattivi;
+	\item \textit{Scalabilità}: la parallelizzazione offre una maggiore scalabilità, consentendo di aumentare le prestazioni dell'elaborazione delle immagini semplicemente aggiungendo più risorse computazionali;
+\end{itemize}
+
+Tuttavia, non tutti gli algoritmi possono essere parallelizzati in modo efficiente. Ci sono alcune situazioni in cui la parallelizzazione potrebbe non essere possibile o non portare a vantaggi significativi:
+\begin{itemize}
+	\item \textit{Dipendenze dei dati}: se l'algoritmo richiede l'accesso e l'utilizzo di dati da altre parti dell'immagine o richiede risultati intermedi calcolati in sequenza, potrebbe essere difficile parallelizzarlo efficacemente: tali dipendenze creano una dipendenza sequenziale tra le operazioni, limitando la capacità di eseguire in parallelo;
+	\item \textit{Dimensioni ridotte dell'immagine}: se si lavora con immagini di dimensioni relativamente piccole, la parallelizzazione potrebbe non essere necessaria o addirittura rallentare l'elaborazione;
+	\item \textit{Overhead di creazione e comunicazione dei worker}: la parallelizzazione richiede la gestione della creazione e della comunicazione tra le parti di elaborazione coinvolte, denominati \textit{worker}. Se l'overhead diventa significativo rispetto al beneficio ottenuto dalla parallelizzazione stessa, potrebbe essere più efficiente eseguire l'algoritmo in modo sequenziale;
+\end{itemize}
+
+In generale, è essenziale valutare attentamente le caratteristiche dell'algoritmo, le dimensioni delle immagini, l'hardware disponibile e gli obiettivi prestazionali desiderati per determinare se la parallelizzazione sia adeguata o conveniente nell'ambito specifico dell'image processing.
+
+\section{Struttura della relazione}
+Di seguito vengono illustrati gli argomenti trattati in ogni capitolo presente:
+\begin{itemize}
+	\item Nel \textit{capitolo 2} vengono introdotti gli strumenti utilizzati per lo sviluppo dell'applicativo denominato\textit{ MultiProcess Image Bench};
+	\item Nel \textit{capitolo 3} viene presentato il software di analisi statica automatica sviluppato;
+	\item Nel \textit{capitolo 4} vengono mostrati alcuni risultati ottenuti;
+	\item Nell'\textit{appendice} vengono riportati i codici di riferimento di alcuni algoritmi dell'image processing;
+\end{itemize}

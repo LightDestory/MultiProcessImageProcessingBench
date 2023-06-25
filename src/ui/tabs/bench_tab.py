@@ -143,7 +143,9 @@ class BenchTab:
         y_elements: list[str] = list(timestamps.keys())
         x_elements: list[float] = list(timestamps.values())
         plt.clf()
-        plt.barh(y_elements, x_elements, height=0.8, color="#2CC985")
+        bar_h = plt.barh(y_elements, x_elements, height=0.8, color="#2CC985")
+        plt.bar_label(bar_h, labels=['%.2f' % e for e in x_elements],
+                      padding=-30, fontsize=21)
         plt.ylabel("CPU set")
         plt.xlabel("Time (s)")
         plt.title("Execution Time Comparison")

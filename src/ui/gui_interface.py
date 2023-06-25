@@ -24,7 +24,7 @@ class App(customtkinter.CTk):
         Sets up the window.
         :return:
         """
-        self.title("MultiProcess Image Processing Benchmark")
+        self.title("MultiProcess Image Processing Bench")
         x_offset: int = int((self.winfo_screenwidth() / 2) - (self._window_width / 2))
         y_offset: int = int((self.winfo_screenheight() / 2) - (self._window_height / 2))
         self.geometry("{}x{}+{}+{}".format(self._window_width, self._window_height, x_offset, y_offset))

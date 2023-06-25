@@ -23,13 +23,13 @@ parameterized_kernel_list: list[str] = ["blur (gaussian Parametrized)"]
 
 convolution_kernels: dict[str, list[list[float]]] = {
     "identity": [[0, 0, 0], [0, 1, 0], [0, 0, 0]],
-    "edge_detection (high-pass)": [[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]],
     "edge_detection (sobel-x)": [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]],
     "edge_detection (sobel-y)": [[-1, -2, -1], [0, 0, 0], [1, 2, 1]],
     "edge_detection (prewitt-x)": [[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]],
     "edge_detection (prewitt-y)": [[-1, -1, -1], [0, 0, 0], [1, 1, 1]],
     "edge_detection (laplacian)": [[0, -1, 0], [-1, 4, -1], [0, -1, 0]],
     "sharpen": [[0, -1, 0], [-1, 5, -1], [0, -1, 0]],
+    "sharpen (high-pass)": [[0, -1/4, 0], [-1/4, 2, -1/4], [0, -1/4, 0]],
     "blur (low-pass)": [[1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9]],
     "blur (gaussian Dim: 3x3 Sigma: 1)": generate_gauss_kernel(3, 1),
     "blur (gaussian Dim: 5x5 Sigma 1)": generate_gauss_kernel(5, 1)
